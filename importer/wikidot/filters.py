@@ -1,86 +1,134 @@
-"""Wikidot constructs that must never be imported.
+"""Scope rules for the Wikidot import.
 
-This is an explicit, code-level filter — not a manual deletion step.
-Monsters, creatures and stat blocks are out of scope for this compendium.
+Verified against dnd2024.wikidot.com (the 2024 wiki) and dnd5e.wikidot.com (2014).
+
+Monsters, creatures and stat blocks are OUT OF SCOPE. They have no PageType, no
+template and no route; they are rejected here in code, never by hand.
 """
 from __future__ import annotations
 
 import re
 
-# Namespace / category prefixes that are out of scope.
-EXCLUDED_PREFIXES = {
-    "creature",
-    "creatures",
-    "monster",
-    "monsters",
-    "npcstatblock",
-    "statblock",
-    "srdmonster",
-    "bestiary",
-    "appendixmonster",
+# ---------------------------------------------------------------- monsters
+# Namespaces and title markers that identify creature content.
+MONSTER_PREFIXES = {
+    "creature", "creatures", "monster", "monsters", "bestiary",
+    "statblock", "stat", "npcstatblock", "npc-stat", "srdmonster",
+    "appendixmonster", "appendix-monster", "encounter", "encounters",
+    "monsterlist", "adventure-path", "cult", "cults",
 }
 
-# Individual page titles that look like creatures.
-EXCLUDED_TITLE_PATTERNS = [
-    re.compile(r"^statblock\b", re.IGNORECASE),
+MONSTER_TITLE_PATTERNS = [
     re.compile(r"\bstat\s*block\b", re.IGNORECASE),
+    re.compile(r"\bstatblock\b", re.IGNORECASE),
+    re.compile(r"\(monster\)", re.IGNORECASE),
+    re.compile(r"\(creature\)", re.IGNORECASE),
     re.compile(r"^appendix\s+[a-z]?\s*:\s*", re.IGNORECASE),
-    re.compile(r"\(monster\)\s*$", re.IGNORECASE),
     re.compile(r"\b(?:creature|monster)\s+type\b", re.IGNORECASE),
+    re.compile(
+        r"^\s*(?:large|medium|small|tiny|huge|gargantuan)\s+(?:dragon|beast|monster)\b",
+        re.IGNORECASE,
+    ),
 ]
 
-# Page types we explicitly refuse, whatever the source says.
-EXCLUDED_PAGE_TYPES = {"monster", "creature", "stat_block"}
-
-# Allowed namespaces -> our page types. Anything else is skipped.
+# ------------------------------------------------------- in-scope mapping
 NAMESPACE_TO_PAGE_TYPE = {
-    "class": "class",
-    "subclass": "subclass",
-    "species": "species",
-    "background": "background",
-    "feat": "feat",
-    "racialfeat": "feat",
     "spell": "spell",
-    "item": "magic_item",
+    "feat": "feat",
+    "background": "background",
+    "species": "species",
+    "lineage": "species",
+    "magic-item": "magic_item",
     "magicitem": "magic_item",
+    "item": "magic_item",
     "equipment": "equipment",
     "weapon": "weapon",
     "armor": "armor",
-    "adventuringgear": "adventuring_gear",
+    "adventuring-gear": "adventuring_gear",
+    "tool": "equipment",
+    "vehicle": "equipment",
+    "poison": "equipment",
+    "siege-equipment": "equipment",
     "rule": "rule",
+    "rules": "rule",
     "condition": "condition",
     "mechanic": "rule",
     "action": "rule",
+    "variant": "rule",
+    "variantrule": "rule",
+    "subclass": "subclass",
 }
+
+# Class landing pages: bare "<class>" or "<class>:main".
+CLASS_NAMES = {
+    "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
+    "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+}
+
+# Per-class namespaces hold subclass pages on this wiki.
+CLASS_SUBCLASS_NAMESPACES = {
+    "artificer", "barbarian", "bard", "blood-hunter", "cleric", "discipline",
+    "druid", "fighter", "hexblade", "monk", "mystic", "paladin", "ranger",
+    "rogue", "sorcerer", "warlock", "wizard", "sidekick",
+}
+
+# Site chrome / discussion namespaces: never compendium content.
+CHROME_PREFIXES = {
+    "system", "help", "legal", "forum", "css", "admincss", "nav", "home",
+    "main", "search", "template", "t", "w", "doc", "doc-data-forms",
+    "doc-modules", "deleted", "wip", "thread", "category", "template-part",
+    "quotes", "forum-category", "forum-thread", "forum-post", "css-theme",
+}
+
+EXCLUDED_PAGE_TYPES = {"monster", "creature", "stat_block"}
+
+_WEAPON_HINT = re.compile(
+    r"\b(sword|axe|bow|dagger|hammer|mace|spear|staff|wand|weapon|"
+    r"armor|shield|mail|plate|leather|helmet|gauntlet|boots)\b"
+)
+
+
+def namespace_of(path: str) -> str:
+    return path.split(":")[0].lower().strip() if ":" in path else ""
+
+
+def page_type_for(path: str) -> str:
+    """Map a Wikidot path to our PageType. Defaults to 'other'."""
+    ns = namespace_of(path)
+    tail = path.split(":")[-1].lower() if ":" in path else path.lower()
+
+    # A bare "<class>" path (no namespace) is the class landing page.
+    if not ns:
+        return "class" if tail in CLASS_NAMES else "other"
+
+    # A namespaced class path is the class landing page only when it is :main.
+    if ns in CLASS_SUBCLASS_NAMESPACES or ns in CLASS_NAMES:
+        return "class" if tail in {"main", "_home", ""} else "subclass"
+    if ns in NAMESPACE_TO_PAGE_TYPE:
+        mapped = NAMESPACE_TO_PAGE_TYPE[ns]
+        if ns in {"item", "magicitem", "magic-item"} and _WEAPON_HINT.search(tail):
+            return "weapon"
+        return mapped
+    return "other"
 
 
 def is_excluded(path: str, title: str = "") -> tuple[bool, str]:
-    """Return (excluded, reason). Exclusion is deterministic and code-driven."""
-    namespace = (path.split(":")[0] if ":" in path else "").lower().strip()
-    if namespace in EXCLUDED_PREFIXES:
-        return True, f"excluded namespace '{namespace}'"
+    """Return (excluded, reason). Deterministic, code-driven, no manual step."""
+    ns = namespace_of(path)
+    title = title or ""
 
-    if namespace and namespace not in NAMESPACE_TO_PAGE_TYPE and ":" in path:
-        # Unknown namespace: keep only if the title clearly maps to a category
-        # we care about. Otherwise skip to avoid importing monsters by accident.
-        if not _looks_like_in_scope(title):
-            return True, f"unknown namespace '{namespace}' outside compendium scope"
+    if ns in MONSTER_PREFIXES:
+        return True, f"creature namespace '{ns}'"
 
-    for pattern in EXCLUDED_TITLE_PATTERNS:
-        if pattern.search(title or ""):
-            return True, f"title matched exclusion pattern '{pattern.pattern}'"
+    for pattern in MONSTER_TITLE_PATTERNS:
+        if pattern.search(title):
+            return True, f"creature title pattern '{pattern.pattern}'"
+
+    if ns in CHROME_PREFIXES:
+        return True, f"site chrome namespace '{ns}'"
+
+    page_type = page_type_for(path)
+    if page_type == "other" and ns and ns not in CLASS_SUBCLASS_NAMESPACES:
+        return True, f"namespace '{ns}' is outside the compendium scope"
 
     return False, ""
-
-
-def _looks_like_in_scope(title: str) -> bool:
-    """Very small allowlist for namespace-less Wikidot pages we want."""
-    if not title:
-        return False
-    scope_words = (
-        "condition", "combat", "movement", "rest", "adventuring", "spellcasting",
-        "action", "damage", "difficulty", "exhaustion", "inspiration", "advantage",
-        "conditions", "rules",
-    )
-    lowered = title.lower()
-    return any(word in lowered for word in scope_words)

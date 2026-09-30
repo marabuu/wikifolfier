@@ -1,41 +1,87 @@
 # Importer do Wikidot
 
-Importa conteúdo D&D 2024 do [dnd5e.wikidot.com](https://dnd5e.wikidot.com/) para
-o compêndio local.
+Importa conteúdo D&D 2024 do
+[dnd2024.wikidot.com](https://dnd2024.wikidot.com/) para o compêndio local.
 
 **Monstros, criaturas e stat blocks são excluídos em código** — nunca por
 exclusão manual.
+
+> **Qual wiki?** Existem dois: `dnd5e.wikidot.com` (regras de **2014**, 2666
+> páginas) e `dnd2024.wikidot.com` (**2024**, o correto para este projeto).
+> Verifiquei o corpo das páginas do `dnd5e` e **não há nenhuma menção a 2024**
+> — é conteúdo 2014. O importer usa `dnd2024` como padrão. Para importar o
+> 2014, use `--base-url https://dnd5e.wikidot.com`.
 
 ---
 
 ## Uso
 
 ```bash
-# Dentro do container (produção)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile tools \
-  run --rm importer import
+# 1. Descobrir as páginas (sem buscar cada página, sem banco)
+python -m importer.cli plan
 
-# Local, com seeds explícitas
-python -m importer.cli import --seeds spell:fireball class:wizard
+# 2. Testar o parsing numa amostra (sem banco)
+python -m importer.cli dry-run --sample 40
 
-# Só ver o que seria excluído
+# 3. Gravar no banco
+python -m importer.cli import
+
+# Ver o que seria excluído
 python -m importer.cli list-excluded
-
-# Último relatório
-python -m importer.cli report
 ```
 
 ### Opções
 
 | Flag | Descrição |
 |---|---|
-| `--seeds` | Páginas seed (ex.: `spell:fireball`, `class:wizard`) |
-| `--base-url` | Origem (default `https://dnd5e.wikidot.com`) |
-| `--delay` | Segundos entre requisições (default `1.0`) |
-| `--max-pages` | Limite de páginas importadas |
-| `--no-assets` | Não baixa imagens |
-| `--report-path` | Onde gravar o JSON de relatório |
-| `--verbose` | Log em nível DEBUG |
+| `--base-url` | Origem (padrão `dnd2024.wikidot.com`) |
+| `--delay` | Segundos entre requisições (padrão `1.0`) |
+| `--sample N` | Processa só as N primeiras (dry-run) |
+| `--show N` | Quantas páginas detalhar na saída |
+| `--indexes ...` | Páginas-índice a usar na descoberta |
+| `--no-seeds` | Não seguir as páginas de classe |
+| `--sitemap` | Descoberta por sitemap (funciona no wiki 2014) |
+| `--save FILE` | Salva a lista de caminhos em escopo |
+
+---
+
+## Escopo atual (medido no site 2024)
+
+```
+Discovered : 1351
+In scope   : 1341
+Excluded   : 10
+
+  magic_item             466
+  spell                  464
+  feat                   206
+  background              71
+  species                 25
+  subclass                75
+  class                   13
+  equipment               11
+```
+
+---
+
+## Descoberta
+
+O wiki 2024 **não tem sitemap utilizável** (retorna HTTP 503), então a
+descoberta usa os próprios índices do site, que são autoritativos:
+
+| Índice | Conteúdo |
+|---|---|
+| `spell` | todas as spells |
+| `feat:all` | todos os feats |
+| `background:all` | todos os backgrounds |
+| `species:all` | todas as species |
+| `magic-item:all` | todos os itens mágicos |
+| `class:all` | todas as classes |
+| `equipment:all` | sub-índices de equipamento |
+
+As 13 páginas `<classe>:main` são usadas como seeds para pegar as subclasses.
+
+No wiki 2014 o sitemap funciona e é usado automaticamente com `--sitemap`.
 
 ---
 
@@ -44,37 +90,30 @@ python -m importer.cli report
 ### Importado
 
 classes, subclasses, species, backgrounds, feats, spells, magic items,
-equipment, weapons, armor, adventuring gear, rules, conditions e demais páginas
-relevantes que **não** sejam criaturas.
+equipment, weapons, armor, adventuring gear, rules e conditions.
 
-### Excluído (em código)
+### Excluído (em código, duas camadas)
 
-`importer/wikidot/filters.py` aplica duas camadas independentes:
+`importer/wikidot/filters.py`:
 
-1. **Namespace bloqueado** — `creature:`, `monster:`, `bestiary:`, `stat:`, `statblock:`,
-   `npcstatblock:`, `srdmonster:`, `appendixmonster:`.
-2. **Padrões de título** — `Appendix Z: ...`, `... (Monster)`,
-   `... Statblock`, `Creature Type ...`.
-3. **Namespace desconhecido** é descartado, a menos que o título seja
-   claramente de regras (`Conditions`, `Combat`, `Movement`, ...).
-4. **Verificação pós-parse** no CLI: mesmo que uma regra escape, a página é
-   rechecada antes de ser salva.
+1. **Namespaces de criatura**: `creature`, `monster`, `bestiary`, `stat`,
+   `statblock`, `npcstatblock`, `encounter`, `cult`, `appendixmonster`.
+2. **Padrões de título**: `Statblock`, `(Monster)`, `Appendix Z: ...`,
+   `Creature Type ...`, `Large Dragon ...`.
+3. **Chrome do site**: `system`, `help`, `legal`, `forum`, `css`, `nav`.
+4. **Namespace desconhecido** é descartado por padrão (deny-by-default).
+5. **Rechecagem pós-parse** no CLI, antes de gravar.
 
-Além disso, `EXCLUDED_PAGE_TYPES = {"monster", "creature", "stat_block"}` não
-existe como `PageType` — não há modelo, template ou rota para esses tipos.
-
-Verifique a configuração:
+`EXCLUDED_PAGE_TYPES = {"monster", "creature", "stat_block"}` não existe como
+`PageType` — não há modelo, template ou rota para esses tipos.
 
 ```bash
 $ python -m importer.cli list-excluded
-EXCLUDED  creature:adult-red-dragon         excluded namespace 'creature'
-EXCLUDED  monster:goblin                   excluded namespace 'monster'
-EXCLUDED  stat:commoner                    excluded namespace 'stat'
-EXCLUDED  appendix:zombies                 excluded namespace 'appendix'
-IMPORTED  spell:fireball
-IMPORTED  class:wizard
-IMPORTED  feat:alert
-IMPORTED  item:bag-of-holding
+EXCLUDED  creature:adult-red-dragon        creature namespace 'creature'
+EXCLUDED  stat:commoner                   creature namespace 'stat'
+IMPORTED  spell:fireball                   spell
+IMPORTED  wizard                           class
+IMPORTED  artificer:alchemist              subclass
 ```
 
 ---
@@ -82,101 +121,70 @@ IMPORTED  item:bag-of-holding
 ## Arquitetura
 
 ```
-WIKIDOT
+WIKIDOT (dnd2024)
    ↓
-client.py     HTTP com retry, backoff e rate limit
+discovery.py   índices do site (o sitemap 2024 retorna 503)
    ↓
-crawler.py    Descoberta a partir de seeds, seguindo links
+extract.py     isola #page-content, remove chrome/ads/scripts, extrai título e tags
    ↓
-filters.py    Exclusão de monstros/criaturas/stat blocks
+filters.py     escopo + exclusão de monstros
    ↓
-parser.py     HTML → Markdown (um handler por construct)
-modules.py    Constructs do Wikidot (spell, infobox, featured, footnote)
+parser.py      HTML → Markdown (um handler por construct)
+modules.py     constructs do Wikidot
    ↓
-converter.py  Markdown + dados estruturados → campos de Page
+converter.py   → Page: tipo, categoria, structured_data (spell/item)
    ↓
-assets.py     Download local e reescrita de URLs
-links.py      Normalização de links internos
+links.py assets.py
    ↓
-services.save_page_with_derived_data()
-   ↓
-PostgreSQL
+services.save_page_with_derived_data() → PostgreSQL
 ```
 
-O parser **não** é uma coleção gigante de regex: cada construct tem seu próprio
-handler (`_table_to_markdown`, `_list_to_markdown`, `_heading_to_markdown`,
-`_cell_text`, ...).
+### Parsing
 
----
+Um handler por construct: `_table`, `_list`, `_heading`, `_paragraph`,
+`_block_quote`, `_cell`. Nada de regex gigante.
 
-## Conteúdo desconhecido
+Detalhes verificados em páginas reais:
 
-Nada é descartado silenciosamente. Um construct não suportado gera:
+- **Artigo isolado**: `#page-content` → fim em `#action-area` / `.page-tags`.
+- **Ads e JS removidos**: o site injeta `nitroAds` e `$j(...)` fora do artigo.
+- **Spell 2024**: `*Level 3 Evocation (Sorcerer, Wizard)*` +
+  `**Casting Time:** Action` etc. → `structured_data`.
+- **Spell 2014**: `*3rd-level evocation*` — ambos os formatos são suportados.
+- **Tabelas** com `<th colspan>` são achatadas em uma linha de cabeçalho.
+- **Ênfase preservada**: `*itálico*` seguido de `**negrito**` não é colapsado.
 
-```
-WARNING: unsupported Wikidot construct -> {"module":"..."}
-```
+### Conteúdo desconhecido
 
-e o texto original é preservado em `ParseResult.warnings`, contabilizado em
-`unknown_constructs` no relatório.
+Construct não suportado gera `WARNING: unsupported Wikidot construct` e o texto
+original é preservado em `ParseResult.warnings`, contabilizado em
+`unknown_constructs`.
 
 ---
 
 ## Idempotência
 
-A importação é feita por `slug`. Rodar duas vezes:
+A importação é feita por `slug`. Rodar duas vezes atualiza em vez de duplicar:
 
 ```bash
-python -m importer.cli import   # 1ª: pages_imported: 830
-python -m importer.cli import   # 2ª: pages_updated: 830
+python -m importer.cli import   # 1ª: pages_imported: 1341
+python -m importer.cli import   # 2ª: pages_updated: 1341
 ```
 
-Nunca cria duplicatas. Páginas finas (<200 caracteres) são puladas com aviso.
+Páginas com menos de 120 caracteres são puladas com aviso.
 
 ---
 
 ## Assets
 
-As imagens são baixadas para `MEDIA_ROOT/wikidot/` e as URLs no Markdown são
-reescritas para `/media/wikidot/...`. Após a importação, o sistema **não depende
-do Wikidot** em uso normal.
-
----
-
-## Relatório
-
-```bash
-=== Import Report ===
-Pages Discovered: 1200
-Pages In Scope: 850
-Pages Excluded: 350
-Pages Imported: 830
-Pages Updated: 20
-Assets Downloaded: 240
-Broken Links: 8
-Unknown Constructs: 5
-Warnings: 13
-
-Report written to import_report.json (ImportRun #1)
-```
-
-O relatório completo (incluindo exemplos de páginas excluídas e a lista de
-warnings) é gravado no JSON e também em `ImportRun.report` no banco.
-
-Consulte depois com:
-
-```bash
-python -m importer.cli report
-GET /api/broken-links/
-```
+Imagens são baixadas para `MEDIA_ROOT/wikidot/` e as URLs são reescritas para
+`/media/wikidot/...`. Após a importação o sistema não depende do Wikidot.
 
 ---
 
 ## Boas práticas
 
-- Use `--delay` respeitoso (1.0 ou mais). O Wikidot é um serviço gratuito.
-- Rode a importação inicial uma vez; depois use `seed_demo` / editor para o
-  conteúdo da campanha.
-- Reimportar atualiza `source_content`, mas **não** sobrescreve páginas
-  homebrew (source diferente não colide por slug).
-- Confira `Broken Links` no relatório e crie as páginas que faltam.
+- Use `--delay` respeitoso (1.0 ou mais). O site responde 503 se abuso.
+- Rode `plan` e `dry-run` antes de gravar.
+- Reimportar atualiza `source_content`, mas não sobrescreve conteúdo homebrew
+  (source diferente não colide por slug).

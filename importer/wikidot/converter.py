@@ -1,18 +1,11 @@
-"""Map Wikidot parsing output onto compendium Page fields."""
+"""Map parsed Wikidot output onto compendium Page fields."""
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
 
-from .crawler import page_type_for
+from .filters import page_type_for
 from .parser import ParseResult, WikidotParser
-
-ORDINALS = ["", "cantrip", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th"]
-
-SPELL_FIELD_RE = re.compile(
-    r"^(Casting Time|Range|Components|Duration)\s*:\s*(.+)$", re.MULTILINE | re.IGNORECASE
-)
-SCHOOL_RE = re.compile(r"(\d(?:st|nd|rd|th)[- ]level\s+)?([a-z]+)\s*$", re.IGNORECASE)
 
 
 @dataclass
@@ -22,10 +15,12 @@ class ConvertedPage:
     page_type: str
     category_slug: str
     source: str = "wikidot"
+    edition: str = "D&D 2024"
     subtitle: str = ""
     markdown: str = ""
     structured_data: dict = field(default_factory=dict)
     tags: list[str] = field(default_factory=list)
+    source_label: str = ""
     warnings: list[str] = field(default_factory=list)
     links: list[tuple[str, str]] = field(default_factory=list)
     images: list[str] = field(default_factory=list)
@@ -47,6 +42,29 @@ CATEGORY_BY_PAGE_TYPE = {
     "condition": "rules",
 }
 
+SPELL_FIELD_RE = re.compile(
+    r"^\s*\*{0,2}(Casting Time|Range|Components|Duration)\*{0,2}\s*:\s*(.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# Covers both header styles:
+#   2024: "Level 3 Evocation (Sorcerer, Wizard)" / "Evocation Cantrip"
+#   2014: "3rd-level evocation" / "cantrip (th)"
+LEVEL_2024_RE = re.compile(
+    r"\b(?:Level\s+(?P<level>[1-9])\s+(?P<school>[a-z]+)|(?P<school2>[a-z]+)\s+Cantrip)\b",
+    re.IGNORECASE,
+)
+LEVEL_2014_RE = re.compile(
+    r"\b(?:(?P<level>[1-9])(?:st|nd|rd|th)[- ]level\s+(?P<school>[a-z]+)|"
+    r"(?P<school2>[a-z]+)\s+(?:\(\s*cantrip\s*\)|Cantrip))",
+    re.IGNORECASE,
+)
+RARITY_RE = re.compile(r"\b(Common|Uncommon|Rare|Very Rare|Legendary|Artifact|Varies)\b")
+ATTUNEMENT_RE = re.compile(r"requires?\s+attunement", re.IGNORECASE)
+ITEM_TYPE_RE = re.compile(
+    r"^\s*\**\s*(?P<type>[A-Z][a-z]+\s+Item|Item)\b", re.MULTILINE
+)
+SPELL_LIST_RE = re.compile(r"Spell Lists?\.", re.IGNORECASE)
+
 
 def slugify(text: str) -> str:
     from django.utils.text import slugify as django_slugify
@@ -58,67 +76,97 @@ class Converter:
     def __init__(self):
         self.parser = WikidotParser()
 
-    def convert(self, path: str, raw_html: str, fallback_title: str = "") -> ConvertedPage:
-        parsed = self.parser.parse(raw_html, page_path=path)
-        page_type = page_type_for(path)
-        title = fallback_title or path.split(":")[-1].replace("_", " ").title()
+    def convert_page(self, page_html: str, path: str) -> ConvertedPage:
+        parsed = self.parser.parse_page(page_html, page_path=path)
+        return self._build(path, parsed)
 
-        structured = {}
+    def convert(self, path: str, raw_html: str,
+                fallback_title: str = "") -> ConvertedPage:
+        parsed = self.parser.parse(raw_html, page_path=path)
+        return self._build(path, parsed, fallback_title)
+
+    def _build(self, path: str, parsed: ParseResult,
+               fallback_title: str = "") -> ConvertedPage:
+        page_type = page_type_for(path)
+        title = parsed.title or fallback_title or path.split(":")[-1].replace("_", " ")
+        title = re.sub(r"^(Background|Species|Feat|Spell|Magic Item)\s*:\s*", "", title)
+
+        structured: dict = {}
         if page_type == "spell":
-            structured = self._spell_data(parsed.markdown)
-        elif page_type == "magic_item":
-            structured = self._item_data(parsed.markdown)
+            structured = self._spell_data(parsed)
+        elif page_type in {"magic_item", "weapon", "armor"}:
+            structured = self._item_data(parsed)
+
+        tags = list(dict.fromkeys(parsed.tags))
+        if parsed.source_label:
+            slug = re.sub(r"[^a-z0-9]+", "-", parsed.source_label.lower()).strip("-")
+            if slug:
+                tags.append(f"source-{slug}")
 
         return ConvertedPage(
-            title=title,
+            title=title.strip(),
             slug=slugify(title),
             page_type=page_type,
             category_slug=CATEGORY_BY_PAGE_TYPE.get(page_type, "rules"),
+            edition="D&D 2024",
             subtitle=parsed.subtitle,
             markdown=parsed.markdown,
             structured_data=structured,
-            tags=[t for t in (parsed.source_label.lower().replace(" ", "-"),) if t],
+            tags=tags,
+            source_label=parsed.source_label,
             warnings=[f"{w.construct}: {w.snippet}" for w in parsed.warnings],
             links=parsed.links,
             images=parsed.images,
         )
 
     @staticmethod
-    def _spell_data(markdown: str) -> dict:
+    def _spell_data(parsed: ParseResult) -> dict:
         data: dict = {}
-        for label, value in SPELL_FIELD_RE.findall(markdown):
+        haystack = "\n".join(parsed.header_lines) + "\n" + parsed.markdown[:4000]
+
+        for label, value in SPELL_FIELD_RE.findall(haystack):
             key = {
                 "casting time": "casting_time",
                 "range": "range",
                 "components": "components",
                 "duration": "duration",
             }[label.lower()]
-            data[key] = value.strip()
+            # Values may still carry a stray "**" from the bold label.
+            data[key] = value.strip().lstrip("*").strip()
 
-        match = re.search(
-            r"\b(cantrip|[1-9](?:st|nd|rd|th)[- ]level)\s+([a-z]+)", markdown, re.IGNORECASE
-        )
-        if match:
-            level_word, school = match.group(1), match.group(2)
-            data["level"] = 0 if level_word.lower() == "cantrip" else int(level_word[0])
-            data["school"] = school.capitalize()
+        for pattern in (LEVEL_2024_RE, LEVEL_2014_RE):
+            match = pattern.search(haystack)
+            if not match:
+                continue
+            groups = match.groupdict()
+            school = groups.get("school") or groups.get("school2")
+            level = groups.get("level")
+            if school:
+                data["school"] = school.capitalize()
+            if level:
+                data["level"] = int(level)
+            else:
+                data["level"] = 0
+            break
 
-        classes = re.search(r"Spell Lists?\.\s*(.+)", markdown, re.IGNORECASE | re.DOTALL)
-        if classes:
-            names = re.findall(r"\[([^\]]+)\]", classes.group(1))
-            data["classes"] = sorted({name.strip() for name in names if name.strip()})
+        spell_list = SPELL_LIST_RE.search(parsed.markdown)
+        if spell_list:
+            tail = parsed.markdown[spell_list.end(): spell_list.end() + 400]
+            classes = re.findall(r"\[([^\]]+)\]", tail)
+            data["classes"] = sorted({c.strip() for c in classes if c.strip()})
         return data
 
     @staticmethod
-    def _item_data(markdown: str) -> dict:
+    def _item_data(parsed: ParseResult) -> dict:
         data: dict = {}
-        rarity = re.search(r"\b(Common|Uncommon|Rare|Very Rare|Legendary|Artifact|Varies)\b", markdown)
+        haystack = "\n".join(parsed.header_lines) + "\n" + parsed.markdown[:3000]
+
+        rarity = RARITY_RE.search(haystack)
         if rarity:
             data["rarity"] = rarity.group(1)
-        attunement = re.search(r"requires attunement", markdown, re.IGNORECASE)
-        if attunement:
+        if ATTUNEMENT_RE.search(haystack):
             data["requires_attunement"] = True
-        kind = re.match(r"\s*([A-Z][a-z]+(?: [a-z]+)? item)", markdown)
+        kind = ITEM_TYPE_RE.search(haystack)
         if kind:
-            data["item_type"] = kind.group(1)
+            data["item_type"] = kind.group("type").strip()
         return data
