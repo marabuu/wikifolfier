@@ -1,0 +1,10 @@
+
+ ============================================
+  Compendio D
+'D' não é reconhecido como um comando interno
+ou externo, um programa operável ou um arquivo em lotes.
+ ============================================
+
+ [1/4] .env encontrado.
+ [2/4] Ambiente virtual OK.
+... foi inesperado neste momento.

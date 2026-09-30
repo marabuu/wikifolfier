@@ -30,12 +30,14 @@ export const api = {
   navigation: () => request<Navigation>('/navigation'),
   categories: () => request<Category[]>('/categories/'),
   pagesByCategory: (slug: string) =>
-    request<{ results: PageListItem[] }>(`/pages/?category=${slug}&page_size=500`),
+    request<{ results: PageListItem[] }>(`/pages/?category__slug=${slug}&page_size=500`),
   page: (slug: string) => request<PageDetail>(`/pages/${slug}/`),
   backlinks: (slug: string) => request<PageLink[]>(`/pages/${slug}/backlinks/`),
   children: (slug: string) => request<PageListItem[]>(`/pages/${slug}/children/`),
   search: (params: URLSearchParams) =>
     request<SearchResponse>(`/search?${params.toString()}`),
+  pagesByType: (type: string) =>
+    request<{ results: PageListItem[] }>(`/pages/?page_type=${type}&page_size=500`),
   preview: (markdown: string, token?: string) =>
     request<{ html: string }>('/pages/preview/', {
       method: 'POST',

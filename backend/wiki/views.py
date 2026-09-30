@@ -53,7 +53,17 @@ class TagViewSet(viewsets.ModelViewSet):
 class PageViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
     lookup_value_regex = "[^/]+"
-    filterset_fields = ["page_type", "source", "edition", "visibility", "category", "is_published"]
+    filterset_fields = [
+        "page_type",
+        "source",
+        "edition",
+        "visibility",
+        "category",
+        "is_published",
+        "parent_page__slug",
+    ]
+    # Friendly filters: the frontend works with readable slugs, not FK ids.
+    filterset_fields = filterset_fields + ["category__slug", "tags__slug"]
     search_fields = ["title", "subtitle"]
     ordering_fields = ["title", "updated_at", "page_type"]
 
@@ -116,7 +126,11 @@ class SearchView(APIView):
         if source:
             qs = qs.filter(source=source)
         if category:
-            qs = qs.filter(category_id=category)
+            # Accept either the category id or its readable slug.
+            if str(category).isdigit():
+                qs = qs.filter(category_id=category)
+            else:
+                qs = qs.filter(category__slug=category)
         qs = qs.distinct()
 
         qs = search_pages(qs, term) if term.strip() else qs.order_by("title")
