@@ -35,18 +35,21 @@ async function PageDetailRoute({
   let backlinks: PageLink[] = [];
   let children: PageListItem[] = [];
 
+  // The page itself is the only thing that must succeed. Backlinks and
+  // children are supplementary: if they fail, the page still renders instead
+  // of turning into a misleading 404.
   try {
-    navigation = await api.navigation();
     page = await api.page(pageSlug);
-    [backlinks, children] = await Promise.all([
-      api.backlinks(pageSlug),
-      api.children(pageSlug),
-    ]);
   } catch {
     notFound();
   }
 
-  // Guard against a page living under a category it does not belong to.
+  navigation = await api.navigation().catch(() => navigation);
+  backlinks = await api.backlinks(pageSlug).catch(() => backlinks);
+  children = await api.children(pageSlug).catch(() => children);
+
+  // A page may be reached under the wrong category segment: serve the
+  // canonical URL instead of failing.
   if (page.category && page.category.slug !== categorySlug) {
     redirect(page.url_path);
   }
@@ -64,14 +67,13 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
   let categories: Category[] = [];
   let pages: PageListItem[] = [];
 
-  try {
-    navigation = await api.navigation();
-    categories = await api.categories();
-    const response = await api.pagesByCategory(slug);
-    pages = response.results;
-  } catch {
-    notFound();
-  }
+  // Only a genuinely unknown category is a 404; a failing API degrades to an
+  // empty listing rather than hiding the navigation.
+  navigation = await api.navigation().catch(() => navigation);
+  categories = await api.categories().catch(() => categories);
+  pages = await api.pagesByCategory(slug)
+    .then((response) => response.results)
+    .catch(() => pages);
 
   const category =
     findCategory(categories, slug) ??

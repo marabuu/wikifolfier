@@ -111,7 +111,9 @@ class Converter:
             edition="D&D 2024",
             subtitle=parsed.subtitle,
             markdown=parsed.markdown,
-            structured_data=structured,
+            # The Wikidot path keeps the namespace, which is the only way to
+            # know which class a subclass belongs to once the title is slugified.
+            structured_data={**structured, "wikidot_path": path},
             tags=tags,
             source_label=parsed.source_label,
             warnings=[f"{w.construct}: {w.snippet}" for w in parsed.warnings],

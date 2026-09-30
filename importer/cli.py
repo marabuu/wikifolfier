@@ -179,9 +179,16 @@ def cmd_import(args) -> int:
     report_scope(in_scope, excluded)
 
     target = in_scope[: args.sample] if args.sample else in_scope
+    if getattr(args, "only_file", None):
+        wanted = {
+            line.strip()
+            for line in Path(args.only_file).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        }
+        target = [path for path in in_scope if path in wanted]
     if args.only:
         wanted = set(args.only)
-        target = [p for p in target if p in wanted]
+        target = [path for path in target if path in wanted]
 
     print(f"\n=== IMPORT: writing {len(target)} pages to the database ===")
     if not args.yes and not args.dry_run:
@@ -338,6 +345,8 @@ def _add_common(parser) -> None:
                         help="Skip image download")
     parser.add_argument("--only", nargs="*", default=None,
                         help="Import only these exact page paths")
+    parser.add_argument("--only-file", default=None,
+                        help="Import only the page paths listed in this file")
     parser.add_argument("-y", "--yes", action="store_true",
                         help="Do not ask for confirmation")
     parser.add_argument("--skip-existing", action="store_true", default=True,
