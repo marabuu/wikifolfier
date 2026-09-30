@@ -1,0 +1,22 @@
+# Development override: expose Django, Next.js and Postgres directly.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#   Frontend: http://localhost:3000
+#   API:      http://localhost:8000/api
+services:
+  frontend:
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  backend:
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  postgres:
+    ports:
+      - "${POSTGRES_PORT_EXPOSED:-5432}:5432"
+
+  nginx:
+    ports: []

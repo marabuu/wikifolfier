@@ -1,0 +1,1 @@
+"""Importer package entrypoint (adds wikidot/ package to sys.path)."""
