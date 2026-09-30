@@ -59,12 +59,13 @@ Monstros, criaturas e stat blocks estão **fora do escopo** e nunca são importa
 
 ## Execução local
 
-Requisitos: apenas **Docker** e **Docker Compose**.
+### Sem Docker (para iterar rápido)
+
+Ver [LOCAL_DEV.md](LOCAL_DEV.md). Resumo:
 
 ```bash
-cp .env.example .env
-# edite .env: troque POSTGRES_PASSWORD e gere um DJANGO_SECRET_KEY
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+scripts\local-setup.cmd   # venv, dependências, .env, migrations, categorias
+scripts\local-start.cmd   # Django :8000 + Next.js :3000
 ```
 
 | Serviço | URL |
@@ -74,13 +75,20 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 | Django Admin | http://localhost:8000/admin |
 | Healthcheck | http://localhost:8000/api/health |
 
-Primeiros passos dentro do container:
+### Com Docker
+
+Requisitos: apenas **Docker** e **Docker Compose**.
 
 ```bash
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 docker compose exec backend python manage.py seed_categories
-docker compose exec backend python manage.py seed_demo   # conteúdo de exemplo
-docker compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py seed_demo
 ```
+
+> **Sobre GitHub Pages:** não é compatível com este projeto — Pages serve
+> apenas arquivos estáticos e o compêndio precisa de backend Django, banco e
+> busca. Use a VPS (ou Render/Fly.io). Detalhes em [LOCAL_DEV.md](LOCAL_DEV.md).
 
 ---
 

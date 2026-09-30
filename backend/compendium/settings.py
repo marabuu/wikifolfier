@@ -6,6 +6,16 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load the project .env file when present (local development convenience).
+# Docker/production inject real environment variables, which always win.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(BASE_DIR.parent / ".env")
+    load_dotenv(BASE_DIR / ".env")
+except ImportError:  # pragma: no cover - dotenv is optional
+    pass
+
 
 def env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
