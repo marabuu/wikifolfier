@@ -58,20 +58,22 @@ class Discovery:
         self.session = session or requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT})
 
-    def fetch(self, path: str) -> str:
+    def fetch(self, path: str, delay: float | None = None) -> str:
+        wait = self.delay if delay is None else delay
         try:
             response = self.session.get(f"{self.base_url}/{path}", timeout=30)
         except requests.RequestException as exc:
             log.warning("fetch failed %s: %s", path, exc)
             return ""
-        time.sleep(self.delay)
+        if wait:
+            time.sleep(wait)
         if not response.ok:
             log.warning("fetch %s -> HTTP %s", path, response.status_code)
             return ""
         return response.text
 
-    def links_from(self, path: str) -> set[str]:
-        html = self.fetch(path)
+    def links_from(self, path: str, delay: float | None = None) -> set[str]:
+        html = self.fetch(path, delay=delay)
         start = html.find('<div id="page-content">')
         if start == -1:
             return set()
@@ -79,19 +81,25 @@ class Discovery:
         body = html[start:start + 400000]
         return set(LINK_RE.findall(body))
 
-    def discover(self, indexes=None, seeds=None, use_seeds: bool = True) -> list[str]:
-        """Return the sorted set of page paths to import."""
+    def discover(self, indexes=None, seeds=None, use_seeds: bool = True,
+                 workers: int = 8) -> list[str]:
+        """Return the sorted set of page paths to import.
+
+        Index pages are fetched concurrently: there are only ~20 of them and
+        they are read-only, so this is safe and keeps discovery fast. The actual
+        page import stays sequential to stay polite to the wiki.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        pages = list(indexes or INDEX_PAGES) + (list(seeds or SEEDS) if use_seeds else [])
+
+        def collect(path: str) -> set[str]:
+            return self.links_from(path, delay=0)
+
         found: set[str] = set()
-
-        for index in indexes or INDEX_PAGES:
-            links = self.links_from(index)
-            log.info("index %s -> %d links", index, len(links))
-            found |= links
-
-        if use_seeds:
-            for seed in seeds or SEEDS:
-                links = self.links_from(seed)
-                log.info("seed %s -> %d links", seed, len(links))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for path, links in zip(pages, pool.map(collect, pages)):
+                log.info("index %s -> %d links", path, len(links))
                 found |= links
 
         return sorted(found)

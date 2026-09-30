@@ -1,0 +1,34 @@
+Pages        : 11
+Categories   : 19
+Tags         : 14
+PageLinks    : 6
+BrokenLinks  : 211
+
+By type:
+  subclass                7
+  class                   1
+  spell                   1
+  feat                    1
+  background              1
+
+Sample pages:
+  Aberrant Heir                    background   //backgrounds/aberrant-heir
+  Alchemist                        subclass     //subclasses/alchemist
+  Alert                            feat         //feats/alert
+  Armorer                          subclass     //subclasses/armorer
+  Artificer                        class        //classes/artificer
+  Artificer Spell List             subclass     //subclasses/artificer-spell-list
+  Artillerist                      subclass     //subclasses/artillerist
+  Battle Smith                     subclass     //subclasses/battle-smith
+
+fireball.rendered_content (781 chars):
+<p><em>Level 3 Evocation (Sorcerer, Wizard)</em></p>
+<p><strong>Casting Time:</strong> Action</p>
+<p><strong>Range:</strong> 150 feet</p>
+<p><strong>Components:</strong> V, S, M (a ball of bat guano and sulfur)</p>
+<p><strong>Duration:</strong> Instantaneous</p>
+<p>A bright streak flashes from you to a point you choose within range and then blossoms with a low roar into a fiery explosion. Each cre
+
+Import runs:
+  2026-09-30 20:32  imported=0 updated=0 broken=0
+  2026-09-30 20:31  imported=3 updated=0 broken=12

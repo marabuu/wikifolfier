@@ -57,6 +57,11 @@ NAMESPACE_TO_PAGE_TYPE = {
     "variant": "rule",
     "variantrule": "rule",
     "subclass": "subclass",
+    # Unearthed Arcana is an official Wizards sourcebook, not user content.
+    # Its pages are classes and class options ("ua:class-psion", ...).
+    "ua": "class",
+    "unearthed-arcana": "class",
+    "unearthedarcana": "class",
 }
 
 # Class landing pages: bare "<class>" or "<class>:main".

@@ -1,0 +1,3 @@
+target: compendium@localhost:5432/compendium
+OK: connected with app credentials
+    PostgreSQL 16.15, compiled by Visual C++ build 1944, 64-bit

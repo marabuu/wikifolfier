@@ -1,0 +1,21 @@
+2026-09-30 18:29:00,200 INFO    importer.discovery: index spell -> 466 links
+2026-09-30 18:29:00,200 INFO    importer.discovery: index feat:all -> 207 links
+2026-09-30 18:29:00,217 INFO    importer.discovery: index background:all -> 74 links
+2026-09-30 18:29:00,217 INFO    importer.discovery: index species:all -> 27 links
+2026-09-30 18:29:00,217 INFO    importer.discovery: index magic-item:all -> 468 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index class:all -> 22 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index equipment:all -> 11 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index artificer:main -> 65 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index barbarian:main -> 10 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index bard:main -> 24 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index cleric:main -> 22 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index druid:main -> 19 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index fighter:main -> 12 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index monk:main -> 10 links
+2026-09-30 18:29:00,218 INFO    importer.discovery: index paladin:main -> 19 links
+2026-09-30 18:29:00,283 INFO    importer.discovery: index ranger:main -> 19 links
+2026-09-30 18:29:00,333 INFO    importer.discovery: index rogue:main -> 11 links
+2026-09-30 18:29:00,340 INFO    importer.discovery: index sorcerer:main -> 20 links
+2026-09-30 18:29:00,346 INFO    importer.discovery: index warlock:main -> 20 links
+2026-09-30 18:29:00,357 INFO    importer.discovery: index wizard:main -> 25 links
+index discovery: 1351 pages

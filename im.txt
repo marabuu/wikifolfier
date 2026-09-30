@@ -1,0 +1,62 @@
+2026-09-30 20:31:38,299 INFO importer.discovery index spell -> 466 links
+2026-09-30 20:31:39,240 INFO importer.discovery index feat:all -> 207 links
+2026-09-30 20:31:40,248 INFO importer.discovery index background:all -> 74 links
+2026-09-30 20:31:41,191 INFO importer.discovery index species:all -> 27 links
+2026-09-30 20:31:42,313 INFO importer.discovery index magic-item:all -> 468 links
+2026-09-30 20:31:43,253 INFO importer.discovery index class:all -> 22 links
+2026-09-30 20:31:44,195 INFO importer.discovery index equipment:all -> 11 links
+2026-09-30 20:31:45,275 INFO importer.discovery seed artificer:main -> 65 links
+2026-09-30 20:31:46,220 INFO importer.discovery seed barbarian:main -> 10 links
+2026-09-30 20:31:47,162 INFO importer.discovery seed bard:main -> 24 links
+2026-09-30 20:31:48,110 INFO importer.discovery seed cleric:main -> 22 links
+2026-09-30 20:31:49,048 INFO importer.discovery seed druid:main -> 19 links
+2026-09-30 20:31:49,995 INFO importer.discovery seed fighter:main -> 12 links
+2026-09-30 20:31:50,934 INFO importer.discovery seed monk:main -> 10 links
+2026-09-30 20:31:51,876 INFO importer.discovery seed paladin:main -> 19 links
+2026-09-30 20:31:52,828 INFO importer.discovery seed ranger:main -> 19 links
+2026-09-30 20:31:53,790 INFO importer.discovery seed rogue:main -> 11 links
+2026-09-30 20:31:54,729 INFO importer.discovery seed sorcerer:main -> 20 links
+2026-09-30 20:31:55,669 INFO importer.discovery seed warlock:main -> 20 links
+2026-09-30 20:31:56,609 INFO importer.discovery seed wizard:main -> 25 links
+index discovery: 1351 pages
+
+=== SCOPE ===
+Discovered : 1351
+In scope   : 1341
+Excluded   : 10
+
+By page type:
+  spell                  464
+  magic_item             356
+  feat                   206
+  weapon                 110
+  subclass                87
+  background              71
+  species                 25
+  class                   13
+  equipment                9
+
+Exclusion reasons:
+      7  namespace 'ua' is outside the compendium scope
+      2  site chrome namespace 'legal'
+      1  namespace 'class' is outside the compendium scope
+
+=== IMPORT: writing 3 pages to the database ===
+
+=== IMPORT REPORT ===
+Pages discovered : 1351
+Pages in scope   : 1341
+Pages excluded   : 10
+Pages imported   : 3
+Pages updated    : 0
+Thin (skipped)   : 0
+Fetch failed     : 0
+Assets downloaded: 0
+Broken links     : 12
+Unknown constructs: 0
+Warnings         : 0
+
+By type:
+  subclass                 1
+  feat                     1
+  spell                    1
