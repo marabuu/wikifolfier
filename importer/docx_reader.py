@@ -13,11 +13,13 @@ Documents containing several titled items are split into one page per item.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import docx
 from docx.table import Table
+from docx.oxml.ns import qn
 from docx.text.paragraph import Paragraph
 
 SEPARATOR_RE = re.compile(r"^_{10,}$")
@@ -100,19 +102,118 @@ Two documents need this: "Adepto de montaria voadora (Feat):" is bold on the
 first run only, and "Novos fighting styles" stores several entries separated by
 line breaks inside a single non-bold paragraph.
 """
+def _hyperlink_markdown(paragraph, hyperlink) -> str:
+    """Return a DOCX hyperlink as Markdown, preserving the linked target."""
+    text = "".join(node.text or "" for node in hyperlink.iter() if node.tag == qn("w:t"))
+    if not text:
+        return ""
+
+    relationship_id = hyperlink.get(qn("r:id"))
+    relationship = paragraph.part.rels.get(relationship_id)
+    target = str(relationship.target_ref) if relationship else ""
+    if not target:
+        return text
+
+    # Wikidot links use URLs such as /spell:mage-armor. The application routes
+    # imported pages by their final slug, so keep the generated link local.
+    match = re.search(r"(?:^|/)spell:([^/?#]+)", target, re.IGNORECASE)
+    if match:
+        # Wikidot sometimes encodes possessives as `dragon-s-breath`, while
+        # imported page slugs are generated from the visible title as
+        # `dragons-breath`.
+        slug_source = match.group(1) if re.match(r"https?://", text, re.IGNORECASE) else text
+        slug_source = slug_source.replace("'", "").replace("’", "")
+        slug_source = unicodedata.normalize("NFKD", slug_source)
+        slug_source = "".join(c for c in slug_source if not unicodedata.combining(c))
+        slug_source = re.sub(r"[^a-zA-Z0-9\s_-]", "", slug_source)
+        slug = re.sub(r"[-\s]+", "-", slug_source).strip("-").lower()
+        return f"[{text}]({target})"
+    if target.startswith("/"):
+        return f"[{text}]({target})"
+    return f"[{text}]({target})"
+
+
+def _run_text(run_element) -> str:
+    parts: list[str] = []
+    for node in run_element.iter():
+        if node.tag == qn("w:t"):
+            parts.append(node.text or "")
+        elif node.tag == qn("w:br"):
+            parts.append("\n")
+    return "".join(parts)
+
+
+def _rewrite_url_links(text: str) -> str:
+    # Some source DOCX files write `Spell Name: <hyperlinked URL>` instead of
+    # making the spell name itself the hyperlink. Turn that representation into
+    # one linked spell name and discard the visible URL.
+    def replace_url_link(match: re.Match) -> str:
+        prefix = match.group("prefix")
+        raw_name = match.group("name").strip()
+        is_bullet = bool(re.match(r"^[\s\u2022*-]+", raw_name))
+        name = re.sub(r"^[\s\u2022*-]+", "", raw_name).strip()
+        href = match.group("href")
+        return f"{prefix}{'- ' if is_bullet else ''}[{name}]({href})"
+
+    return re.sub(
+        r"(?P<prefix>^|[\n\u2022]\s*)(?P<name>[^:\n]+):\s*"
+        r"\[https?://[^\]]+/spell:[^\]]+\]\((?P<href>https?://[^)]+)\)",
+        replace_url_link,
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+
+
+def _paragraph_markdown_text(paragraph) -> str:
+    """Read paragraph content in XML order, including w:hyperlink nodes."""
+    parts: list[str] = []
+    for child in paragraph._p:
+        if child.tag == qn("w:hyperlink"):
+            parts.append(_hyperlink_markdown(paragraph, child))
+        elif child.tag == qn("w:r"):
+            parts.append(_run_text(child))
+    text = "".join(parts)
+    return _rewrite_url_links(text)
+
+
+def _paragraph_is_bulleted(paragraph) -> bool:
+    ppr = paragraph._p.pPr
+    return ppr is not None and ppr.numPr is not None
+
+
 def _paragraph_lines(paragraph) -> list[tuple[str, bool]]:
     lines: list[tuple[str, bool]] = []
-    for run in paragraph.runs:
-        if not run.text:
+    current = ""
+    current_bold = False
+
+    def flush() -> None:
+        nonlocal current, current_bold
+        if current.strip():
+            lines.append((current.strip(), current_bold))
+        current = ""
+        current_bold = False
+
+    for child in paragraph._p:
+        if child.tag == qn("w:hyperlink"):
+            text = _hyperlink_markdown(paragraph, child)
+            is_bold = False
+        elif child.tag == qn("w:r"):
+            text = _run_text(child)
+            rpr = child.find(qn("w:rPr"))
+            is_bold = rpr is not None and rpr.find(qn("w:b")) is not None
+        else:
             continue
-        pieces = run.text.split("\n")
-        for index, piece in enumerate(pieces):
-            piece = piece.strip()
-            if piece:
-                lines.append((piece, bool(run.bold)))
-            elif index < len(pieces) - 1:
-                lines.append(("", bool(run.bold)))
-    return lines
+        if not text:
+            continue
+        pieces = text.split("\n")
+        current += pieces[0]
+        current_bold = current_bold or is_bold
+        for piece in pieces[1:]:
+            flush()
+            current = piece
+            current_bold = is_bold
+    flush()
+    return [(_rewrite_url_links(text), is_bold) for text, is_bold in lines]
 
 
 def _paragraph_is_bold_title(paragraph) -> bool:
@@ -131,6 +232,8 @@ def _paragraph_is_bold_title(paragraph) -> bool:
     if not bold_runs[0]:
         return False
     text = lines[0][0]
+    if LIST_PREFIX_RE.match(text) or text.lstrip().startswith("- "):
+        return False
     if len(text) > 90:
         return False
     # The colon is often a separate, non-bold run ("Casting time" + ":"), so the
@@ -171,7 +274,7 @@ def _pad(row: list[str], width: int) -> list[str]:
 
 
 def _paragraph_to_markdown(paragraph, title: str | None) -> str | None:
-    text = paragraph.text.strip()
+    text = _paragraph_markdown_text(paragraph).strip()
     if not text:
         return None
     if SEPARATOR_RE.match(text):
@@ -181,7 +284,8 @@ def _paragraph_to_markdown(paragraph, title: str | None) -> str | None:
     field_match = FIELD_RE.match(text)
     if field_match and len(text) < 120:
         return f"**{field_match.group(1).strip()}:** {field_match.group(2).strip()}".rstrip()
-    return LIST_PREFIX_RE.sub("", text)
+    line = LIST_PREFIX_RE.sub("", text)
+    return f"- {line}" if _paragraph_is_bulleted(paragraph) else line
 
 
 def detect_level(text: str):
@@ -257,7 +361,9 @@ def _line_to_markdown(text: str) -> str | None:
     field_match = FIELD_RE.match(text)
     if field_match and len(text) < 120:
         return f"**{field_match.group(1).strip()}:** {field_match.group(2).strip()}".rstrip()
-    return LIST_PREFIX_RE.sub("", text)
+    has_markdown_bullet = bool(LIST_PREFIX_RE.match(text)) or text.lstrip().startswith("- ")
+    line = LIST_PREFIX_RE.sub("", text)
+    return f"- {line}" if has_markdown_bullet else line
 
 
 def _document_blocks(document) -> list[tuple[str, object]]:
@@ -295,7 +401,8 @@ def _document_blocks(document) -> list[tuple[str, object]]:
 
         for text, _is_bold in lines:
             if text:
-                blocks.append(("text", text))
+                prefix = "- " if _paragraph_is_bulleted(element) else ""
+                blocks.append(("text", prefix + text))
     return blocks
 
 

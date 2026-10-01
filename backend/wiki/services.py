@@ -5,13 +5,40 @@ Kept out of serializers/views so the importer can reuse exactly the same code pa
 from __future__ import annotations
 
 from django.utils.text import slugify
+import re
 
 from .models import BrokenLink, Page, PageLink, Tag
 from .rendering import render
 
 
+MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)\s]+)([^)]*)\)")
+
+
+def normalize_known_internal_links(markdown: str) -> str:
+    """Point imported links at the canonical path when the visible title resolves."""
+    def replace(match):
+        label, href, suffix = match.groups()
+        if href.startswith("/"):
+            slug = href.strip("/").split("/")[-1]
+        else:
+            spell = re.search(r"(?:^|/)spell:([^/?#]+)", href, re.IGNORECASE)
+            if not spell:
+                return match.group(0)
+            slug = spell.group(1)
+
+        target = Page.objects.filter(slug=slug).first()
+        if target is None:
+            target = Page.objects.filter(slug=slugify(label)).first()
+        if target is None:
+            return match.group(0)
+        return f"[{label}]({target.url_path}{suffix})"
+
+    return MARKDOWN_LINK_RE.sub(replace, markdown or "")
+
+
 def save_page_with_derived_data(page: Page, tag_names=None) -> Page:
     """Persist a page, rendering markdown and syncing internal links."""
+    page.source_content = normalize_known_internal_links(page.source_content)
     result = render(page.source_content)
     page.rendered_content = result.html
     page.save()

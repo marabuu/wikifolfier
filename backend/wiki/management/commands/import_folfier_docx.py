@@ -131,7 +131,7 @@ PREFIX_RE = re.compile(
 # Section markers that introduce a class spell list inside a class document.
 SPELL_LIST_RE = re.compile(
     r"^(?:#{2,3}\s*)?(?:lista\s+de\s+magias|magias\s+(?:da|do)\s+classe|"
-    r"spell\s*list|lista\s+de\s+feitiços)[^\n]{0,40}$",
+    r"spell\s*(?:list|table)|lista\s+de\s+feitiços)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 def split_spell_list(markdown: str) -> tuple[str, str]:
@@ -144,11 +144,55 @@ def split_spell_list(markdown: str) -> tuple[str, str]:
     if not match:
         return markdown, ""
 
-    body = markdown[: match.start()].rstrip()
-    listing = markdown[match.end():].lstrip()
+    body_prefix = markdown[: match.start()].rstrip()
+    after_heading = markdown[match.end():].lstrip()
+    # Keep subclass sections after a class spell table in the class source.
+    next_section = None
+    for section in re.finditer(r"^###\s+(.+?)\s*$", after_heading, re.MULTILINE):
+        section_title = section.group(1).strip()
+        if re.match(r"^(?:\d+|[1-9])(?:st|nd|rd|th)\s+Level$", section_title, re.IGNORECASE):
+            continue
+        next_section = section
+        break
+    if next_section:
+        listing = after_heading[:next_section.start()].rstrip()
+        body = body_prefix + "\n\n" + after_heading[next_section.start():].lstrip()
+    else:
+        body = body_prefix
+        listing = after_heading
     if not listing:
         return markdown, ""
     return body, listing
+
+
+def add_spell_list_link(markdown: str, title: str, slug: str) -> str:
+    """Expose a generated class spell list from the class page body."""
+    link = f"[{title} Spell List](/subclasses/{slug})"
+    sentence = f"A lista de magias de {title} está na {link}."
+    if link in markdown:
+        return markdown
+
+    conjuration = re.search(
+        r"^##\s+(?:Conjuração|Conjuração|Spellcasting)\s*$",
+        markdown,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if conjuration:
+        start = conjuration.end()
+        while markdown[start:start + 1] == "\n":
+            start += 1
+        end = markdown.find("\n\n", start)
+        if end >= 0:
+            return markdown[:end] + "\n\n" + sentence + markdown[end:]
+        return markdown.rstrip() + "\n\n" + sentence
+
+    feature = re.search(r"^.*conjura.{0,12}:.*$", markdown, re.IGNORECASE | re.MULTILINE)
+    if feature:
+        end = markdown.find("\n\n", feature.end())
+        if end >= 0:
+            return markdown[:end] + "\n\n" + sentence + markdown[end:]
+
+    return markdown.rstrip() + "\n\n## Spell List\n\n" + sentence
 
 
 # A class document opens with a stray "Classe" / "Classe: X" label.
@@ -216,6 +260,213 @@ def normalize_class_markdown(markdown: str) -> tuple[str, str]:
         subtitle = label[:255]
 
     return text, subtitle
+
+
+def normalize_runescaper_markdown(markdown: str) -> str:
+    """Arrange Runescaper's opening like an imported Wikidot class page."""
+    class_marker = "## Características de Classe"
+    hit_points_marker = "## Pontos de Vida"
+
+    class_start = markdown.find(class_marker)
+    hit_points_start = markdown.find(hit_points_marker)
+    if class_start < 0 or hit_points_start < 0 or hit_points_start <= class_start:
+        return markdown
+
+    opening = markdown[:class_start].strip()
+    class_block = markdown[class_start + len(class_marker):hit_points_start].strip()
+    remainder = markdown[hit_points_start:].strip()
+
+    # The first table is already the Runescaper progression table. Keep it,
+    # but place it after the class introduction, as on the imported pages.
+    table_start = class_block.find("| Nível")
+    if table_start < 0:
+        return markdown
+    progression = class_block[table_start:].strip()
+
+    intro_parts = [part.strip() for part in re.split(r"\n\s*\n", opening) if part.strip()]
+    if not intro_parts:
+        return markdown
+    introduction = intro_parts[0]
+
+    core_traits = """| Core Runescaper Traits | |
+| --- | --- |
+| **Primary Ability** | Intelligence |
+| **Hit Point Die** | D8 per Runescaper level |
+| **Saving Throw Proficiencies** | Intelligence and Constitution |
+| **Skill Proficiencies** | Choose 2: History, Arcana, Insight, Medicine, Nature, or Athletics |
+| **Weapon Proficiencies** | Simple weapons |
+| **Tool Proficiencies** | Rune inscription tools |
+| **Armor Training** | Light armor, medium armor, and shields |
+| **Starting Equipment** | A simple weapon; a light crossbow and 20 bolts; (a) studded leather armor or (b) scale mail; rune inscription tools; or 3d10 gp |"""
+
+    becoming = """# Becoming a Runescaper …
+
+## As a Level 1 Character
+
+- Gain all the traits in the Core Runescaper Traits table.
+- Gain the Runescaper's level 1 features, which are listed in the Runescaper Features table.
+
+## As a Multiclass Character
+
+- You must have an Intelligence score of 13 or higher to multiclass into or out of this class.
+
+# Runescaper Class Features
+
+As a Runescaper, you gain the following class features when you reach the specified Runescaper levels. These features are listed in the Runescaper Features table.
+
+###### Runescaper Features
+
+"""
+
+    return "\n\n".join(
+        [introduction, core_traits, becoming + progression, remainder]
+    ).strip()
+
+
+RUNESCAPER_SUBCLASS_BLOCKS = (
+    (
+        "Livro moderno",
+        "### Livro de feitiços rúnicos modernos",
+        "### Livro de feitiços rúnicos antigos",
+        "Livro Moderno",
+        "Livro Antigo",
+    ),
+    (
+        "Livro antigo",
+        "### Livro de feitiços rúnicos antigos",
+        "### Livro de feitiços rúnicos lunar",
+        "Livro Antigo",
+        "Livro Lunar",
+    ),
+    (
+        "Livro lunar",
+        "### Livro de feitiços rúnicos lunar",
+        "### Livro de feitiços rúnicos de gravação",
+        "Livro Lunar",
+        "Livro de gravações rúnicas",
+    ),
+    (
+        "Livro de Gravação rúnica",
+        "### Livro de feitiços rúnicos de gravação",
+        None,
+        "Livro de gravações rúnicas",
+        None,
+    ),
+)
+
+
+def split_runescaper_subclasses(markdown: str) -> tuple[str, list[tuple[str, str]]]:
+    """Move each Runescaper book into its own linked subclass page."""
+    def find_marker(marker: str, start: int = 0) -> tuple[int, int]:
+        exact = markdown.find(marker, start)
+        if exact >= 0:
+            return exact, len(marker)
+        if marker.endswith("de gravação"):
+            match = re.search(
+                r"^### Livro de feiti.{1,4}os r.{1,4}nicos de (?:grava|graca).*$",
+                markdown[start:],
+                re.IGNORECASE | re.MULTILINE,
+            )
+            if match:
+                return start + match.start(), len(match.group(0))
+        return -1, 0
+
+    spell_books = markdown.find("Spell books")
+    if spell_books < 0:
+        return markdown, []
+
+    sections: list[tuple[str, str]] = []
+    spell_list_heading = "### Livro de feitiços rúnicos"
+    spell_list_start, spell_list_heading_length = find_marker(spell_list_heading, spell_books)
+    first_subclass_start = min(
+        (
+            position
+            for _title, marker, _end, _feature, _feature_end in RUNESCAPER_SUBCLASS_BLOCKS
+            for position, _length in [find_marker(marker, spell_books)]
+            if position >= 0
+        ),
+        default=-1,
+    )
+    if spell_list_start >= 0 and first_subclass_start > spell_list_start:
+        sections.append(
+            (
+                "Livro de feitiços rúnicos",
+                markdown[spell_list_start + spell_list_heading_length:first_subclass_start].strip(),
+            )
+        )
+
+    for title, spell_start_marker, spell_end_marker, feature_start_marker, feature_end_marker in RUNESCAPER_SUBCLASS_BLOCKS:
+        spell_start, spell_heading_length = find_marker(spell_start_marker, spell_books)
+        if spell_start < 0:
+            continue
+        spell_end, _ = find_marker(spell_end_marker, spell_start) if spell_end_marker else (-1, 0)
+        if spell_end < 0:
+            feature_start = markdown.find(feature_start_marker, spell_start)
+            spell_end = feature_start if feature_start >= 0 else len(markdown)
+
+        feature_start = markdown.find(feature_start_marker, spell_end)
+        if feature_start < 0:
+            continue
+        feature_end = (
+            markdown.find(feature_end_marker, feature_start)
+            if feature_end_marker
+            else len(markdown)
+        )
+        if feature_end < 0:
+            feature_end = len(markdown)
+
+        spell_body = markdown[spell_start + spell_heading_length:spell_end].strip()
+        feature_body = markdown[feature_start:feature_end].strip()
+        feature_body = re.sub(
+            rf"^{re.escape(feature_start_marker)}\s*", "", feature_body, count=1
+        ).strip()
+        sections.append((title, f"{spell_body}\n\n{feature_body}".strip()))
+
+    class_body = markdown[:spell_books].rstrip()
+    class_body = re.sub(
+        r"^### (?:Livro moderno|Livro antigo|Livro lunar|Livro de Gravação rúnica)\s*$\n?",
+        "",
+        class_body,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    class_body = class_body.replace(
+        "### Livro de feitiços rúnicos",
+        "### [Livro de feitiços rúnicos](/subclasses/runescaper-livro-de-feiticos-runicos)",
+        1,
+    )
+
+    advanced_heading = "### Livro avançado"
+    advanced_start = class_body.find(advanced_heading)
+    next_heading = (
+        class_body.find("\n### ", advanced_start + len(advanced_heading))
+        if advanced_start >= 0 else -1
+    )
+    if advanced_start >= 0:
+        advanced_end = next_heading if next_heading >= 0 else len(class_body)
+        links = "\n\n".join(
+            f"- [{title}](/subclasses/{slugify(f'Runescaper-{title}')})"
+            for title, _body in sections
+            if title != "Livro de feitiços rúnicos"
+        )
+        advanced = class_body[advanced_start:advanced_end].rstrip()
+        class_body = class_body[:advanced_start] + advanced + "\n\n" + links + class_body[advanced_end:]
+
+    conjuration_heading = "## Conjuração"
+    conjuration_start = class_body.find(conjuration_heading)
+    if conjuration_start >= 0:
+        content_start = conjuration_start + len(conjuration_heading)
+        while class_body[content_start:content_start + 1] == "\n":
+            content_start += 1
+        paragraph_end = class_body.find("\n\n", content_start)
+        if paragraph_end >= 0:
+            list_link = "[Livro de feitiços rúnicos](/subclasses/runescaper-livro-de-feiticos-runicos)"
+            class_body = (
+                class_body[:paragraph_end]
+                + f"\n\nA lista de magias do Runescaper está na {list_link}."
+                + class_body[paragraph_end:]
+            )
+
+    return class_body.strip(), sections
 
 
 def split_named_sections(markdown: str, wanted: list[str]) -> tuple[str, list[tuple[str, str]]]:
@@ -325,6 +576,13 @@ class Command(BaseCommand):
             for item in document.items:
                 title = (PREFIX_RE.sub("", item.title).strip()
                          or PREFIX_RE.sub("", stem).strip())
+                if page_type == "feat":
+                    title = re.sub(
+                        r"\s*\((?:feat|feats)\)\s*:?[\s.]*$",
+                        "",
+                        title,
+                        flags=re.IGNORECASE,
+                    ).strip()
 
                 # GM overrides: rename or drop this entry.
                 if title.lower() in TITLE_OVERRIDES:
@@ -340,34 +598,47 @@ class Command(BaseCommand):
                 # first so the list can point at it as its parent.
                 spell_list = None
                 subtitle = ""
+                named_subclasses: list[tuple[str, str]] = []
                 if page_type == "class":
                     markdown, subtitle = normalize_class_markdown(markdown)
+                    if title.strip().lower() == "runescaper":
+                        markdown = normalize_runescaper_markdown(markdown)
+                        markdown, named_subclasses = split_runescaper_subclasses(markdown)
                     markdown, spell_list = split_spell_list(markdown)
 
                 # The GM named the subclass sections of the new classes.
                 sub_sections: list[tuple[str, str]] = []
                 if page_type == "class":
-                    wanted = CLASS_SUBCLASS_SECTIONS.get(stem.strip().lower())
-                    if wanted:
+                    if named_subclasses:
+                        sub_sections = named_subclasses
+                    else:
+                        wanted = CLASS_SUBCLASS_SECTIONS.get(stem.strip().lower())
+                    if wanted and not sub_sections:
                         markdown, sub_sections = split_named_sections(markdown, wanted)
 
                 if sub_sections:
                     # The subclass names must be links inside the class body,
                     # the same way the imported classes link their subclasses.
                     link_lines = "\n".join(
-                        f"- [{section_title}](/{slugify(f'{title}-{section_title}')})"
+                        f"- [{section_title}](/subclasses/{slugify(f'{title}-{section_title}')})"
                         for section_title, _body in sub_sections
                     )
-                    markdown = (
-                        markdown.rstrip()
-                        + "\n\n## Subclasses\n\n"
-                        + link_lines
-                        + "\n\n"
-                    )
+                    if title.strip().lower() != "runescaper":
+                        markdown = (
+                            markdown.rstrip()
+                            + "\n\n## Subclasses\n\n"
+                            + link_lines
+                            + "\n\n"
+                        )
                     if getattr(options, "verbose", False):
                         self.stdout.write(
                             f"      (links de subclasse inline: {len(sub_sections)})"
                         )
+
+                if spell_list:
+                    markdown = add_spell_list_link(
+                        markdown, title, slugify(f"{title}-spell-list")
+                    )
 
                 was_created = self._upsert(
                     title=title,
@@ -413,8 +684,13 @@ class Command(BaseCommand):
                 if spell_list:
                     made = self._upsert(
                         title=f"{title} Spell List",
-                        page_type="spell",
-                        category_slug="spells",
+                        # Wikidot exposes a class spell list as a related
+                        # page of the class, under the Subclasses category.
+                        # Keep homebrew class pages on that same shape instead
+                        # of placing their generated list in the global spell
+                        # index as if it were an individual spell.
+                        page_type="subclass",
+                        category_slug="subclasses",
                         item=DocxItem(title=f"{title} Spell List",
                                       markdown=spell_list),
                         categories=categories,
@@ -428,8 +704,15 @@ class Command(BaseCommand):
                             created += 1
                         else:
                             updated += 1
-                        by_type["spell"] = by_type.get("spell", 0) + 1
-                        per_file.append(f"      - [spell] {title} Spell List")
+                        by_type["subclass"] = by_type.get("subclass", 0) + 1
+                        per_file.append(f"      - [subclass] {title} Spell List")
+
+                # The class is saved before its generated child pages. Re-render
+                # it now so its subclass/spell-list links resolve immediately.
+                if page_type == "class" and (sub_sections or spell_list):
+                    parent = Page.objects.filter(slug=slugify(title)).first()
+                    if parent:
+                        save_page_with_derived_data(parent)
 
             if options["verbose"] or document.is_multi:
                 self.stdout.write(f"\n  {path.parent.name}/{document.filename}"

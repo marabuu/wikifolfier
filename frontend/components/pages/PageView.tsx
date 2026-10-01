@@ -57,14 +57,28 @@ export function PageView({
       )}
 
       {(() => {
-        // A class page links its subclasses and its spell list separately,
-        // mirroring how the official classes are structured.
+        // Wikidot models class spell-list pages as related subclass pages.
+        // Keeping that relationship here means imported and homebrew classes
+        // get the same final index, regardless of where their content came
+        // from.
         const isClass = page.page_type === 'class';
+        const isClassSpellList = (child: PageListItem) => {
+          const title = child.title.trim().toLowerCase();
+          return (
+            title.endsWith(' spell list') ||
+            title.endsWith(' lista de magias') ||
+            title.endsWith(' lista de feitiços')
+          );
+        };
         const subclassLinks = isClass
-          ? children.filter((child) => child.page_type === 'subclass')
+          ? children.filter(
+              (child) => child.page_type === 'subclass' || isClassSpellList(child),
+            )
           : children;
         const otherLinks = isClass
-          ? children.filter((child) => child.page_type !== 'subclass')
+          ? children.filter(
+              (child) => child.page_type !== 'subclass' && !isClassSpellList(child),
+            )
           : [];
 
         return (

@@ -45,6 +45,8 @@ echo        API      : http://localhost:8000/api
 echo        Health   : http://localhost:8000/api/health
 echo.
 
+if exist "frontend\.next" rmdir /s /q "frontend\.next"
+
 start "Compendium API" /D "%CD%\backend" cmd /k "..\.venv\Scripts\python.exe manage.py runserver 8000"
 timeout /t 2 /nobreak >nul
 start "Compendium Web" /D "%CD%\frontend" cmd /k "npm run dev"
