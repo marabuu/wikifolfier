@@ -17,6 +17,8 @@ class Source(models.TextChoices):
     HOMEBREW = "homebrew", "Homebrew"
     CAMPAIGN = "campaign", "Campaign"
     CUSTOM = "custom", "Custom"
+    # The campaign's own authored content, imported from .docx.
+    FOLFIER = "folfier", "Folfier"
 
 
 class Visibility(models.TextChoices):
