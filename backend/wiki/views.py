@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import time
+
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -194,6 +196,18 @@ class SearchView(APIView):
         )
 
 
+class SpellIndexItemSerializer(serializers.ModelSerializer):
+    """Light payload for the spell index.
+
+    Deliberately omits `excerpt`: building it renders and strips the whole HTML
+    body of every spell, which took ~9s for 464 pages on each request.
+    """
+
+    class Meta:
+        model = Page
+        fields = ("id", "slug", "title", "page_type", "url_path", "structured_data")
+
+
 class SpellIndexView(APIView):
     """Spell index: filterable by level, school and casting class.
 
@@ -210,48 +224,65 @@ class SpellIndexView(APIView):
         "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
     ]
 
+    CACHE_TTL = 60.0
+    _cache: dict = {}
+    _cache_time: dict = {}
+
     def get(self, request):
         params = request.query_params
+        level = params.get("level")
+        school = params.get("school")
+        klass = params.get("class")
+
+        key = (level, school, klass)
+        now = time.monotonic()
+        cached = self._cache.get(key)
+        if cached and now - self._cache_time.get(key, 0) < self.CACHE_TTL:
+            return Response(cached)
+
         queryset = visible_pages(request).filter(page_type="spell")
 
-        level = params.get("level")
         if level not in (None, ""):
             try:
                 queryset = queryset.filter(structured_data__level=int(level))
             except (TypeError, ValueError):
                 pass
 
-        school = params.get("school")
         if school:
             queryset = queryset.filter(structured_data__school__iexact=school)
 
-        klass = params.get("class")
         if klass and klass in self.CLASSES:
             queryset = queryset.filter(
                 Q(structured_data__classes__contains=[klass])
                 | Q(tags__slug=klass)
             ).distinct()
 
-        results = PageListSerializer(queryset.order_by("title")[:600], many=True).data
+        rows = queryset.order_by("title")[:600]
+        results = SpellIndexItemSerializer(rows, many=True).data
 
-        groups = []
-        for value, label in [(0, "Cantrip")] + [(n, f"Nível {n}") for n in range(1, 10)]:
-            groups.append({
-                "level": value,
-                "label": label,
-                "count": sum(
-                    1 for row in results
-                    if (row.get("structured_data") or {}).get("level") == value
-                ),
-            })
+        counts = {level_value: 0 for level_value, _ in
+                  [(0, "Cantrip")] + [(n, f"Nível {n}") for n in range(1, 10)]}
+        for row in results:
+            value = (row.get("structured_data") or {}).get("level")
+            if isinstance(value, int) and value in counts:
+                counts[value] += 1
 
-        return Response({
+        groups = [
+            {"level": value, "label": label, "count": counts[value]}
+            for value, label in
+            [(0, "Cantrip")] + [(n, f"Nível {n}") for n in range(1, 10)]
+        ]
+
+        payload = {
             "count": len(results),
             "results": results,
             "groups": groups,
             "schools": self.SCHOOLS,
             "classes": self.CLASSES,
-        })
+        }
+        self._cache[key] = payload
+        self._cache_time[key] = now
+        return Response(payload)
 
 
 class NavigationView(APIView):
