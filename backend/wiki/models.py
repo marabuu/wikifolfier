@@ -137,6 +137,17 @@ class Page(models.Model):
     category = models.ForeignKey(
         Category, null=True, blank=True, on_delete=models.SET_NULL, related_name="pages"
     )
+    subcategory = models.ForeignKey(
+        Category,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="sub_pages",
+        help_text=(
+            "Grouping inside the category: spell level, feat kind, Unearthed "
+            "Arcana. Never changes the page URL, which stays under `category`."
+        ),
+    )
     tags = models.ManyToManyField(Tag, blank=True, related_name="pages")
 
     source_content = models.TextField(

@@ -1,0 +1,3 @@
+Migrations for 'wiki':
+  wiki\migrations\0002_page_subcategory.py
+    - Add field subcategory to page

@@ -31,6 +31,33 @@ TREE = [
     ("House Rules", None, "campaign", 70),
 ]
 
+# Groupings inside a category. These are reached through Page.subcategory and
+# never change the page URL (/spells/fireball stays under "spells").
+SPELL_LEVELS = [
+    ("Cantrip", 0),
+    ("Level 1", 1),
+    ("Level 2", 2),
+    ("Level 3", 3),
+    ("Level 4", 4),
+    ("Level 5", 5),
+    ("Level 6", 6),
+    ("Level 7", 7),
+    ("Level 8", 8),
+    ("Level 9", 9),
+]
+
+FEAT_KINDS = [
+    ("Origin Feats", "feat-origin", "originfeat"),
+    ("General Feats", "feat-general", "generalfeat"),
+    ("Fighting Styles", "feat-fighting-style", "fightingstylefeat"),
+    ("Epic Boons", "feat-epic-boon", "epicboonfeat"),
+]
+
+SPELL_SCHOOLS = [
+    "Abjuration", "Conjuration", "Divination", "Enchantment",
+    "Evocation", "Illusion", "Necromancy", "Transmutation",
+]
+
 
 class Command(BaseCommand):
     help = "Create or update the default compendium category tree."

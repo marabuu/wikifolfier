@@ -1,0 +1,4 @@
+Operations to perform:
+  Apply all migrations: admin, auth, contenttypes, sessions, wiki
+Running migrations:
+  Applying wiki.0002_page_subcategory... OK

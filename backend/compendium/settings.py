@@ -138,7 +138,9 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    # Big categories (Magic Items, Spells) hold hundreds of pages, so the
+    # client can ask for a bigger page instead of walking 9 pages of 50.
+    "DEFAULT_PAGINATION_CLASS": "wiki.pagination.CompendiumPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend",

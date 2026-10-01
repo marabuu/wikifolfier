@@ -59,9 +59,11 @@ export interface PageListItem {
   source_label: string;
   edition: string;
   category: Category | null;
+  subcategory: Category | null;
   url_path: string;
   visibility: Visibility;
   excerpt: string;
+  structured_data?: Record<string, unknown>;
 }
 
 export interface PageDetail extends PageListItem {
@@ -85,6 +87,20 @@ export interface PageLink {
 export interface Navigation {
   core: Category[];
   campaign: Category[];
+}
+
+export interface SpellGroup {
+  level: number;
+  label: string;
+  count: number;
+}
+
+export interface SpellIndexResponse {
+  count: number;
+  results: PageListItem[];
+  groups: SpellGroup[];
+  schools: string[];
+  classes: string[];
 }
 
 export interface SearchResponse {

@@ -6,7 +6,9 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import BrokenLink, Category, Page, Source, Visibility
 from .rendering import render
@@ -50,9 +52,48 @@ class TagViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
 
+class SpellFilterBackend(DjangoFilterBackend):
+    """Extra filters for the spell index: level, school and casting class."""
+
+    SPELL_CLASSES = {
+        "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
+        "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+    }
+
+    def filter_queryset(self, request, queryset, view):
+        queryset = super().filter_queryset(request, queryset, view)
+
+        params = request.query_params
+
+        level = params.get("level")
+        if level is not None and level != "":
+            try:
+                queryset = queryset.filter(structured_data__level=int(level))
+            except (TypeError, ValueError):
+                pass
+
+        school = params.get("school")
+        if school:
+            queryset = queryset.filter(
+                structured_data__school__iexact=school
+            )
+
+        klass = params.get("class")
+        if klass:
+            slug = klass.strip().lower()
+            if slug in self.SPELL_CLASSES:
+                # Either recorded in the structured data or as a wiki tag.
+                queryset = queryset.filter(
+                    Q(structured_data__classes__contains=[slug]) | Q(tags__slug=slug)
+                ).distinct()
+
+        return queryset
+
+
 class PageViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
     lookup_value_regex = "[^/]+"
+    filter_backends = [SpellFilterBackend] + list(api_settings.DEFAULT_FILTER_BACKENDS)
     filterset_fields = [
         "page_type",
         "source",
@@ -63,7 +104,11 @@ class PageViewSet(viewsets.ModelViewSet):
         "parent_page__slug",
     ]
     # Friendly filters: the frontend works with readable slugs, not FK ids.
-    filterset_fields = filterset_fields + ["category__slug", "tags__slug"]
+    filterset_fields = filterset_fields + [
+        "category__slug",
+        "subcategory__slug",
+        "tags__slug",
+    ]
     search_fields = ["title", "subtitle"]
     ordering_fields = ["title", "updated_at", "page_type"]
 
@@ -147,6 +192,66 @@ class SearchView(APIView):
                 },
             }
         )
+
+
+class SpellIndexView(APIView):
+    """Spell index: filterable by level, school and casting class.
+
+    Always returns the whole set (no pagination) so the index page can group
+    spells by level and offer live filters.
+    """
+
+    SCHOOLS = [
+        "Abjuration", "Conjuration", "Divination", "Enchantment",
+        "Evocation", "Illusion", "Necromancy", "Transmutation",
+    ]
+    CLASSES = [
+        "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
+        "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+    ]
+
+    def get(self, request):
+        params = request.query_params
+        queryset = visible_pages(request).filter(page_type="spell")
+
+        level = params.get("level")
+        if level not in (None, ""):
+            try:
+                queryset = queryset.filter(structured_data__level=int(level))
+            except (TypeError, ValueError):
+                pass
+
+        school = params.get("school")
+        if school:
+            queryset = queryset.filter(structured_data__school__iexact=school)
+
+        klass = params.get("class")
+        if klass and klass in self.CLASSES:
+            queryset = queryset.filter(
+                Q(structured_data__classes__contains=[klass])
+                | Q(tags__slug=klass)
+            ).distinct()
+
+        results = PageListSerializer(queryset.order_by("title")[:600], many=True).data
+
+        groups = []
+        for value, label in [(0, "Cantrip")] + [(n, f"Nível {n}") for n in range(1, 10)]:
+            groups.append({
+                "level": value,
+                "label": label,
+                "count": sum(
+                    1 for row in results
+                    if (row.get("structured_data") or {}).get("level") == value
+                ),
+            })
+
+        return Response({
+            "count": len(results),
+            "results": results,
+            "groups": groups,
+            "schools": self.SCHOOLS,
+            "classes": self.CLASSES,
+        })
 
 
 class NavigationView(APIView):

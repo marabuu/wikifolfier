@@ -49,13 +49,21 @@ SPELL_FIELD_RE = re.compile(
 # Covers both header styles:
 #   2024: "Level 3 Evocation (Sorcerer, Wizard)" / "Evocation Cantrip"
 #   2014: "3rd-level evocation" / "cantrip (th)"
-LEVEL_2024_RE = re.compile(
-    r"\b(?:Level\s+(?P<level>[1-9])\s+(?P<school>[a-z]+)|(?P<school2>[a-z]+)\s+Cantrip)\b",
+VALID_SCHOOLS = {
+    "abjuration", "conjuration", "divination", "enchantment",
+    "evocation", "illusion", "necromancy", "transmutation",
+}
+
+# 2024 header: "*Level 3 Evocation (Sorcerer, Wizard)*" / "*Evocation Cantrip (Warlock)*"
+HEADER_2024_RE = re.compile(
+    r"\b(?:Level\s+(?P<level>[1-9])\s+(?P<school>[a-z]+)|(?P<school2>[a-z]+)\s+Cantrip)"
+    r"\s*(?:\((?P<classes>[^)]*)\))?",
     re.IGNORECASE,
 )
-LEVEL_2014_RE = re.compile(
+HEADER_2014_RE = re.compile(
     r"\b(?:(?P<level>[1-9])(?:st|nd|rd|th)[- ]level\s+(?P<school>[a-z]+)|"
-    r"(?P<school2>[a-z]+)\s+(?:\(\s*cantrip\s*\)|Cantrip))",
+    r"(?P<school2>[a-z]+)\s+(?:\(\s*cantrip\s*\)|Cantrip))"
+    r"\s*(?:\((?P<classes>[^)]*)\))?",
     re.IGNORECASE,
 )
 RARITY_RE = re.compile(r"\b(Common|Uncommon|Rare|Very Rare|Legendary|Artifact|Varies)\b")
@@ -64,6 +72,12 @@ ITEM_TYPE_RE = re.compile(
     r"^\s*\**\s*(?P<type>[A-Z][a-z]+\s+Item|Item)\b", re.MULTILINE
 )
 SPELL_LIST_RE = re.compile(r"Spell Lists?\.", re.IGNORECASE)
+
+# Class names used to recognise the per-class tags the wiki puts on spells.
+CLASS_NAMES = {
+    "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
+    "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+}
 
 
 def slugify(text: str) -> str:
@@ -136,26 +150,48 @@ class Converter:
             # Values may still carry a stray "**" from the bold label.
             data[key] = value.strip().lstrip("*").strip()
 
-        for pattern in (LEVEL_2024_RE, LEVEL_2014_RE):
+        for pattern in (HEADER_2024_RE, HEADER_2014_RE):
             match = pattern.search(haystack)
             if not match:
                 continue
             groups = match.groupdict()
-            school = groups.get("school") or groups.get("school2")
-            level = groups.get("level")
-            if school:
+            school = (groups.get("school") or groups.get("school2") or "").lower()
+            # Guard against words that merely look like a school name.
+            if school in VALID_SCHOOLS:
                 data["school"] = school.capitalize()
-            if level:
-                data["level"] = int(level)
-            else:
-                data["level"] = 0
+            level = groups.get("level")
+            data["level"] = int(level) if level else 0
             break
 
+        # 2024 lists the classes in the header: "Level 3 Evocation (Sorcerer, Wizard)"
+        raw_classes: set[str] = set()
+        header_match = HEADER_2024_RE.search(haystack) or HEADER_2014_RE.search(haystack)
+        if header_match and header_match.group("classes"):
+            for name in header_match.group("classes").split(","):
+                name = name.strip().strip("*").strip()
+                if name and len(name) <= 40:
+                    raw_classes.add(name)
+
+        # 2014 lists them as links under "Spell Lists."
         spell_list = SPELL_LIST_RE.search(parsed.markdown)
         if spell_list:
-            tail = parsed.markdown[spell_list.end(): spell_list.end() + 400]
-            classes = re.findall(r"\[([^\]]+)\]", tail)
-            data["classes"] = sorted({c.strip() for c in classes if c.strip()})
+            tail = parsed.markdown[spell_list.end(): spell_list.end() + 600]
+            raw_classes.update(c.strip() for c in re.findall(r"\[([^\]]+)\]", tail))
+
+        # The wiki also tags each spell with the classes that can cast it.
+        raw_classes.update(t for t in parsed.tags if t in CLASS_NAMES)
+
+        # Normalise: "wizard", "Wizard" and "WIZARD" are the same class.
+        classes: set[str] = set()
+        for name in raw_classes:
+            slug = name.strip().lower()
+            if slug in CLASS_NAMES:
+                classes.add(slug)
+            else:
+                classes.add(name.strip())
+
+        if classes:
+            data["classes"] = sorted(classes)
         return data
 
     @staticmethod

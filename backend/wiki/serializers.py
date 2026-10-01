@@ -31,6 +31,7 @@ class TagSerializer(serializers.ModelSerializer):
 
 class PageListSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
+    subcategory = CategorySerializer(read_only=True)
     source_label = serializers.CharField(read_only=True)
     excerpt = serializers.SerializerMethodField()
 
@@ -38,7 +39,8 @@ class PageListSerializer(serializers.ModelSerializer):
         model = Page
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "source_label",
-            "edition", "category", "url_path", "visibility", "excerpt",
+            "edition", "category", "subcategory", "url_path", "visibility", "excerpt",
+            "structured_data",
         )
 
     def get_excerpt(self, obj: Page) -> str:
@@ -50,10 +52,17 @@ class PageDetailSerializer(PageListSerializer):
     parent_page = PageListSerializer(read_only=True)
 
     class Meta(PageListSerializer.Meta):
-        fields = PageListSerializer.Meta.fields + (
-            "source_content", "rendered_content", "structured_data",
-            "tags", "parent_page", "created_at", "updated_at",
-        )
+        fields = [
+            f for f in PageListSerializer.Meta.fields if f != "structured_data"
+        ] + [
+            "source_content",
+            "rendered_content",
+            "structured_data",
+            "tags",
+            "parent_page",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class PageWriteSerializer(serializers.ModelSerializer):

@@ -5,6 +5,7 @@ import type {
   PageLink,
   PageListItem,
   SearchResponse,
+  SpellIndexResponse,
 } from './types';
 
 export const API_URL =
@@ -36,8 +37,10 @@ export const api = {
   children: (slug: string) => request<PageListItem[]>(`/pages/${slug}/children/`),
   search: (params: URLSearchParams) =>
     request<SearchResponse>(`/search?${params.toString()}`),
-  pagesByType: (type: string) =>
-    request<{ results: PageListItem[] }>(`/pages/?page_type=${type}&page_size=500`),
+  spellIndex: (params: URLSearchParams) =>
+    request<SpellIndexResponse>(`/spells-index?${params.toString()}`),
+  pages: (query: string) =>
+    request<{ results: PageListItem[] }>(`/pages/?${query}&page_size=2000`),
   preview: (markdown: string, token?: string) =>
     request<{ html: string }>('/pages/preview/', {
       method: 'POST',

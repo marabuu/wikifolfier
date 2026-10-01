@@ -11,6 +11,7 @@ router.register("broken-links", views.BrokenLinkViewSet, basename="brokenlink")
 
 urlpatterns = [
     path("search", views.SearchView.as_view(), name="search"),
+    path("spells-index", views.SpellIndexView.as_view(), name="spells-index"),
     path("navigation", views.NavigationView.as_view(), name="navigation"),
     path("health", views.HealthView.as_view(), name="health"),
     path("", include(router.urls)),
