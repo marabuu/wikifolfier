@@ -306,36 +306,40 @@ def parse_docx(path) -> DocxDocument:
 
     blocks = _document_blocks(document)
 
-    # Documents that use underscore rules are already split correctly by them;
-    # splitting on bold as well would carve out bold sub-headings like
-    # "At Higher Levels" as if they were new entries. Bold splitting is therefore
-    # reserved for documents that have no rules at all ("Novos Feats").
-    has_rules = any(kind == "text" and SEPARATOR_RE.match(payload)
-                    for kind, payload in blocks)
-    split_on_bold = (not has_rules
-                     and Path(filename).stem.strip().lower() in MULTI_ITEM_DOCS)
+    # Only the known multi-entry documents are ever split. Class documents use
+    # underscores as decoration and bold for feature names, so splitting them
+    # shatters one class into pages called "Ki Points:" or "Pele de Troll".
+    split_enabled = Path(filename).stem.strip().lower() in MULTI_ITEM_DOCS
 
     chunks: list[list] = []
     current: list = []
     seen_content = False
 
-    for kind, payload in blocks:
-        if kind == "text" and SEPARATOR_RE.match(payload):
-            if current:
+    if not split_enabled:
+        chunks = [blocks]
+    else:
+        # Use the underscore rules when the document has them; fall back to bold
+        # titles only for documents without rules, so bold sub-headings inside a
+        # spell ("At Higher Levels") never become new spells.
+        has_rules = any(kind == "text" and SEPARATOR_RE.match(payload)
+                        for kind, payload in blocks)
+        for kind, payload in blocks:
+            if kind == "text" and SEPARATOR_RE.match(payload):
+                if current:
+                    chunks.append(current)
+                current, seen_content = [], False
+                continue
+
+            if kind == "title" and seen_content and not has_rules:
                 chunks.append(current)
-            current, seen_content = [], False
-            continue
+                current = []
 
-        if split_on_bold and kind == "title" and seen_content:
+            current.append((kind, payload))
+            if kind in {"title", "text"}:
+                seen_content = True
+
+        if current:
             chunks.append(current)
-            current = []
-
-        current.append((kind, payload))
-        if kind in {"title", "text"}:
-            seen_content = True
-
-    if current:
-        chunks.append(current)
 
     items: list[DocxItem] = []
     warnings: list[str] = []
@@ -370,7 +374,12 @@ def parse_docx(path) -> DocxDocument:
                 items[-1].markdown += "\n\n" + markdown
                 items[-1].structured_data.update(extract_structured(markdown))
                 continue
-            warnings.append("sem titulo proprio; usando o nome do arquivo")
+            title = Path(filename).stem
+
+        # A document that was not split keeps the file name as its title: the
+        # first bold line is usually a table caption ("Fiendish Legacy"), not the
+        # entry's real name.
+        if not split_enabled:
             title = Path(filename).stem
 
         items.append(DocxItem(

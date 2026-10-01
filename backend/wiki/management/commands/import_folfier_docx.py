@@ -20,7 +20,7 @@ from django.utils.text import slugify
 # The .docx reader lives in the sibling "importer" package, outside the Django app.
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "importer"))
 
-from docx_reader import parse_docx  # noqa: E402
+from docx_reader import DocxItem, parse_docx  # noqa: E402
 
 from wiki.models import Category, Page, Source  # noqa: E402
 from wiki.services import save_page_with_derived_data  # noqa: E402
@@ -66,10 +66,61 @@ CLASS_HINTS = {
     "sorcerer": "sorcerer", "feiticeiro": "sorcerer",
 }
 
+# Subclasses whose file name does not carry a "(classe)" hint: matched by title.
+TITLE_HINTS = {
+    "circulo da lua": "wizard",
+    "circle of the moon": "wizard",
+    "horizon walker": "ranger",
+    "eldritch invocation": "warlock",
+    "celestial": "cleric",
+    "way of mercy": "monk",
+    "way of shadow": "monk",
+    "arcane ways": "wizard",
+    "cosmic tinker": "artificer",
+    "coletor de almas": "ranger",
+    "duelista": "rogue",
+    "colegio da pintura": "bard",
+    "subtlety": "rogue",
+    "luminae": "sorcerer",
+    "mestre de espadas": "monk",
+    "dragonborn": "barbarian",
+    "loa da morte": "warlock",
+    "great old one": "warlock",
+    "caminho dos quatro elementos": "monk",
+    "circulo da ordenacao dos mundos": "druid",
+    "dominio da luz da lua": "cleric",
+    "juramento dos escritores": "paladin",
+}
+
+# Longest alternatives first: "subraça" must win over "sub".
 PREFIX_RE = re.compile(
-    r"^\s*(classe|sub|subclasse|sub-raça|subraca|raça|raca)\s*[-–:]\s*",
+    r"^\s*(?:sub-?ra[çc]a|subclasse|classe|ra[çc]a|sub)\s*[-–:]?\s*",
     re.IGNORECASE,
 )
+
+# Section markers that introduce a class spell list inside a class document.
+SPELL_LIST_RE = re.compile(
+    r"^(?:#{2,3}\s*)?(?:lista\s+de\s+magias|magias\s+(?:da|do)\s+classe|"
+    r"spell\s*list|lista\s+de\s+feitiços)[^\n]{0,40}$",
+    re.IGNORECASE | re.MULTILINE,
+)
+def split_spell_list(markdown: str) -> tuple[str, str]:
+    """Move a class spell list out of the class body.
+
+    Returns (class_markdown, spell_list_markdown). The spell list is empty when
+    the document has no such section.
+    """
+    match = SPELL_LIST_RE.search(markdown)
+    if not match:
+        return markdown, ""
+
+    body = markdown[: match.start()].rstrip()
+    listing = markdown[match.end():].lstrip()
+    if not listing:
+        return markdown, ""
+    return body, listing
+
+
 class Command(BaseCommand):
     help = "Import the campaign .docx corpus as pages with source=folfier."
 
@@ -80,6 +131,8 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=0)
         parser.add_argument("--verbose", action="store_true",
                             help="List every page, not only multi-item documents")
+        parser.add_argument("--reset", action="store_true",
+                            help="Delete existing source=folfier pages before importing")
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -91,6 +144,14 @@ class Command(BaseCommand):
         if options["limit"]:
             files = files[: options["limit"]]
         self.stdout.write(f"{len(files)} arquivos em {root}\n")
+
+        if options["reset"]:
+            # Only pages created by this command are removed: official imported
+            # content and hand-written pages are never touched.
+            stale = Page.objects.filter(source=Source.FOLFIER)
+            count = stale.count()
+            stale.delete()
+            self.stdout.write(f"páginas folfier removidas: {count}\n")
 
         categories = {c.slug: c for c in Category.objects.all()}
         created = updated = 0
@@ -115,15 +176,30 @@ class Command(BaseCommand):
                 hint = PARENT_RE.search(stem)
                 if hint:
                     parent_title = CLASS_HINTS.get(hint.group(1).strip().lower())
+                if not parent_title:
+                    # No "(classe)" in the file name: match the entry title.
+                    lowered = PREFIX_RE.sub("", stem).lower()
+                    for needle, parent_slug in TITLE_HINTS.items():
+                        if needle in lowered:
+                            parent_title = parent_slug
+                            break
 
             for item in document.items:
                 title = (PREFIX_RE.sub("", item.title).strip()
                          or PREFIX_RE.sub("", stem).strip())
+                markdown = item.markdown
+
+                # Split the class spell list out, but create the class page
+                # first so the list can point at it as its parent.
+                spell_list = None
+                if page_type == "class":
+                    markdown, spell_list = split_spell_list(markdown)
+
                 was_created = self._upsert(
                     title=title,
                     page_type=page_type,
                     category_slug=category_slug,
-                    item=item,
+                    item=DocxItem(title=title, markdown=markdown),
                     categories=categories,
                     parent_title=parent_title,
                     collisions=collisions,
@@ -136,6 +212,27 @@ class Command(BaseCommand):
                     updated += 1
                 by_type[page_type] = by_type.get(page_type, 0) + 1
                 per_file.append(f"      - [{page_type}] {title[:70]}")
+
+                if spell_list:
+                    made = self._upsert(
+                        title=f"{title} Spell List",
+                        page_type="spell",
+                        category_slug="spells",
+                        item=DocxItem(title=f"{title} Spell List",
+                                      markdown=spell_list),
+                        categories=categories,
+                        parent_title=None,
+                        collisions=collisions,
+                        slug_hint=slugify(f"{title}-spell-list"),
+                        as_child_of=title,
+                    )
+                    if made is not None:
+                        if made:
+                            created += 1
+                        else:
+                            updated += 1
+                        by_type["spell"] = by_type.get("spell", 0) + 1
+                        per_file.append(f"      - [spell] {title} Spell List")
 
             if options["verbose"] or document.is_multi:
                 self.stdout.write(f"\n  {path.parent.name}/{document.filename}"
@@ -164,8 +261,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {item}")
 
     def _upsert(self, title, page_type, category_slug, item, categories,
-                parent_title, collisions):
-        slug = slugify(title)[:180]
+                parent_title, collisions, slug_hint=None, as_child_of=None):
+        slug = (slug_hint or slugify(title))[:180]
         if not slug:
             return None
 
@@ -192,6 +289,12 @@ class Command(BaseCommand):
 
         if parent_title:
             page.parent_page = Page.objects.filter(slug=parent_title).first()
+        if as_child_of:
+            # The spell list is reached from its class page, like the official
+            # classes do.
+            page.parent_page = Page.objects.filter(
+                title__iexact=as_child_of
+            ).first() or Page.objects.filter(slug=slugify(as_child_of)).first()
 
         save_page_with_derived_data(page)
         return was_created
