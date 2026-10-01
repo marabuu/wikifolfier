@@ -20,7 +20,23 @@ export default async function ContentPage({ params }: { params: { slug: string[]
   if (segments.length >= 2) {
     return <PageDetailRoute categorySlug={segments[0]} pageSlug={last} />;
   }
-  return <CategoryIndexRoute slug={last} />;
+  return <SingleSegmentRoute slug={last} />;
+}
+
+/**
+ * One segment can be either a category (/spells) or a bare page slug.
+ * Imported content links spells as "/acid-splash", without the category, so a
+ * single segment that is not a category is resolved as a page instead of 404.
+ */
+async function SingleSegmentRoute({ slug }: { slug: string }) {
+  const categories = await api.categories().catch(() => []);
+  const known = findCategory(categories, slug);
+  if (known) return <CategoryIndexRoute slug={slug} />;
+
+  const page = await api.page(slug).catch(() => null);
+  if (page) return <PageDetailRoute categorySlug={page.category?.slug ?? slug} pageSlug={slug} />;
+
+  return <CategoryIndexRoute slug={slug} />;
 }
 
 async function PageDetailRoute({
@@ -67,18 +83,22 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
   let categories: Category[] = [];
   let pages: PageListItem[] = [];
 
-  // Only a genuinely unknown category is a 404; a failing API degrades to an
-  // empty listing rather than hiding the navigation.
   navigation = await api.navigation().catch(() => navigation);
   categories = await api.categories().catch(() => categories);
-  pages = await api.pagesByCategory(slug)
-    .then((response) => response.results)
-    .catch(() => pages);
 
   const category =
     findCategory(categories, slug) ??
     findCategory(navigation.core, slug) ??
     findCategory(navigation.campaign, slug);
+
+  // A category that lives under a parent (spell level, feat kind) is filled
+  // through Page.subcategory; top-level categories through Page.category.
+  const query = category?.parent
+    ? `subcategory__slug=${slug}`
+    : `category__slug=${slug}`;
+  pages = await api.pages(query)
+    .then((response) => response.results)
+    .catch(() => pages);
 
   if (!category && pages.length === 0) notFound();
 

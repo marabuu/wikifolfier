@@ -240,7 +240,9 @@ class SpellIndexView(APIView):
         if cached and now - self._cache_time.get(key, 0) < self.CACHE_TTL:
             return Response(cached)
 
+        # Unearthed Arcana spells have their own page and stay out of the index.
         queryset = visible_pages(request).filter(page_type="spell")
+        queryset = queryset.exclude(structured_data__wikidot_path__startswith="ua:")
 
         if level not in (None, ""):
             try:
