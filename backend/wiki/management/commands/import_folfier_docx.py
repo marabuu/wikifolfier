@@ -351,6 +351,24 @@ class Command(BaseCommand):
                     if wanted:
                         markdown, sub_sections = split_named_sections(markdown, wanted)
 
+                if sub_sections:
+                    # The subclass names must be links inside the class body,
+                    # the same way the imported classes link their subclasses.
+                    link_lines = "\n".join(
+                        f"- [{section_title}](/{slugify(f'{title}-{section_title}')})"
+                        for section_title, _body in sub_sections
+                    )
+                    markdown = (
+                        markdown.rstrip()
+                        + "\n\n## Subclasses\n\n"
+                        + link_lines
+                        + "\n\n"
+                    )
+                    if getattr(options, "verbose", False):
+                        self.stdout.write(
+                            f"      (links de subclasse inline: {len(sub_sections)})"
+                        )
+
                 was_created = self._upsert(
                     title=title,
                     page_type=page_type,
