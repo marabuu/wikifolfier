@@ -151,6 +151,73 @@ def split_spell_list(markdown: str) -> tuple[str, str]:
     return body, listing
 
 
+# A class document opens with a stray "Classe" / "Classe: X" label.
+CLASS_LABEL_RE = re.compile(r"^\s*\**\s*classe\s*\**\s*:?\s*\**\s*(.{0,60}?)\s*\**\s*$",
+                            re.IGNORECASE)
+
+# Section headings that become the page's top-level (H2) sections, matching how
+# the official class pages are organised.
+CLASS_SECTIONS = (
+    "características da classe", "características de classe",
+    "pontos de vida e proficiências", "pontos de vida",
+    "proficiências", "equipamento", "conjuração",
+    "class features", "hit points", "proficiencies",
+)
+
+
+def normalize_class_markdown(markdown: str) -> tuple[str, str]:
+    """Give a homebrew class the same shape as an official class page.
+
+    Returns (markdown, subtitle). The stray "Classe: X" label is dropped, the
+    real opening paragraph becomes the subtitle, and the main sections are
+    promoted to H2 so the page reads like the imported classes.
+    """
+    lines = markdown.splitlines()
+    body: list[str] = []
+    label = ""
+
+    for line in lines:
+        match = CLASS_LABEL_RE.match(line)
+        if match and not body:
+            label = match.group(1).strip()
+            continue
+        body.append(line)
+
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(body)).strip()
+
+    # Promote the class' own section headings to H2.
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        heading = re.match(r"^(#{3,4})\s*(.+?)\s*:?\s*$", line)
+        if not heading:
+            continue
+        if heading.group(2).strip().lower() in CLASS_SECTIONS:
+            lines[index] = f"## {heading.group(2).strip()}"
+    text = "\n".join(lines)
+
+    # Subtitle: the first real prose paragraph, skipping tables and headings.
+    subtitle = ""
+    paragraph: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if paragraph:
+                break
+            continue
+        if stripped.startswith(("#", "|", "-", ">", "*")):
+            continue
+        paragraph.append(stripped)
+        if len(" ".join(paragraph)) > 60:
+            break
+    if paragraph:
+        subtitle = " ".join(paragraph)[:255]
+
+    if not subtitle and label:
+        subtitle = label[:255]
+
+    return text, subtitle
+
+
 def split_named_sections(markdown: str, wanted: list[str]) -> tuple[str, list[tuple[str, str]]]:
     """Pull the named subsections out of a class body.
 
@@ -272,7 +339,9 @@ class Command(BaseCommand):
                 # Split the class spell list out, but create the class page
                 # first so the list can point at it as its parent.
                 spell_list = None
+                subtitle = ""
                 if page_type == "class":
+                    markdown, subtitle = normalize_class_markdown(markdown)
                     markdown, spell_list = split_spell_list(markdown)
 
                 # The GM named the subclass sections of the new classes.
@@ -290,6 +359,7 @@ class Command(BaseCommand):
                     categories=categories,
                     parent_title=parent_title,
                     collisions=collisions,
+                    subtitle=subtitle,
                 )
                 if was_created is None:
                     continue
@@ -370,7 +440,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {item}")
 
     def _upsert(self, title, page_type, category_slug, item, categories,
-                parent_title, collisions, slug_hint=None, as_child_of=None):
+                parent_title, collisions, slug_hint=None, as_child_of=None, subtitle=""):
         slug = (slug_hint or slugify(title))[:180]
         if not slug:
             return None
@@ -387,6 +457,7 @@ class Command(BaseCommand):
         was_created = existing is None
         page = existing or Page(slug=slug, title=title)
         page.title = title[:255]
+        page.subtitle = subtitle[:255]
         page.page_type = page_type
         page.source = Source.FOLFIER
         page.edition = "D&D 2024"

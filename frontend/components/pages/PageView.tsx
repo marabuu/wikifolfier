@@ -56,18 +56,49 @@ export function PageView({
         </p>
       )}
 
-      {children.length > 0 && (
-        <>
-          <h2 className="index-heading">{page.page_type === 'class' ? 'Subclasses' : 'Related Pages'}</h2>
-          <ul className="index-list">
-            {children.map((child) => (
-              <li key={child.id}>
-                <a href={child.url_path}>{child.title}</a>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      {(() => {
+        // A class page links its subclasses and its spell list separately,
+        // mirroring how the official classes are structured.
+        const isClass = page.page_type === 'class';
+        const subclassLinks = isClass
+          ? children.filter((child) => child.page_type === 'subclass')
+          : children;
+        const otherLinks = isClass
+          ? children.filter((child) => child.page_type !== 'subclass')
+          : [];
+
+        return (
+          <>
+            {subclassLinks.length > 0 && (
+              <>
+                <h2 className="index-heading">{isClass ? 'Subclasses' : 'Related Pages'}</h2>
+                <ul className="index-list">
+                  {subclassLinks.map((child) => (
+                    <li key={child.id}>
+                      <a href={child.url_path}>{child.title}</a>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {otherLinks.length > 0 && (
+              <>
+                <h2 className="index-heading">
+                  {isClass ? 'Spell List' : 'Related Pages'}
+                </h2>
+                <ul className="index-list">
+                  {otherLinks.map((child) => (
+                    <li key={child.id}>
+                      <a href={child.url_path}>{child.title}</a>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
+        );
+      })()}
 
       {backlinks.length > 0 && (
         <>
