@@ -103,6 +103,25 @@ TITLE_OVERRIDES = {
     "o celestial (apenas 2014)": None,
 }
 
+# The GM named what counts as a "subclass" for the new Folfier classes. These
+# documents have no Subclasses section, so the headings are listed explicitly
+# rather than guessed.
+CLASS_SUBCLASS_SECTIONS = {
+    "classe - herói": ["Destino Heróico"],
+    "classe - runescaper": [
+        "Livro de feitiços rúnicos",
+        "Livro moderno",
+        "Livro antigo",
+        "Livro lunar",
+        "Livro de Gravação rúnica",
+    ],
+    "classe - filho da magia": [
+        "Magia Progenitora",
+        "Magia Progenitora (Níveis 1, 3, 7, 10, 14, 18)",
+    ],
+    "classe - witcher": ["Escola do Lobo", "Escola do Urso", "Escola da Víbora"],
+}
+
 # Longest alternatives first: "subraça" must win over "sub".
 PREFIX_RE = re.compile(
     r"^\s*(?:sub-?ra[çc]a|subclasse|classe|ra[çc]a|sub)\s*[-–:]?\s*",
@@ -130,6 +149,47 @@ def split_spell_list(markdown: str) -> tuple[str, str]:
     if not listing:
         return markdown, ""
     return body, listing
+
+
+def split_named_sections(markdown: str, wanted: list[str]) -> tuple[str, list[tuple[str, str]]]:
+    """Pull the named subsections out of a class body.
+
+    Returns (remaining_markdown, [(section_title, section_markdown), ...]).
+    A section runs from its heading up to the next heading of the same or higher
+    level, so the class keeps everything that was not named.
+    """
+    headings = list(re.finditer(r"^(#{2,4})\s*(.+?)\s*$", markdown, re.MULTILINE))
+    extracted: list[tuple[str, str]] = []
+    drop_spans: list[tuple[int, int]] = []
+
+    for index, match in enumerate(headings):
+        title = match.group(2).strip()
+        # Exact match (case-insensitive): a prefix match would also swallow
+        # "Livro de feitiços rúnicos modernos" into "Livro de feitiços rúnicos".
+        if title.lower() not in {name.lower() for name in wanted}:
+            continue
+
+        level = len(match.group(1))
+        end = len(markdown)
+        for follow in headings[index + 1:]:
+            if len(follow.group(1)) <= level:
+                end = follow.start()
+                break
+
+        extracted.append((title, markdown[match.end(): end].strip()))
+        drop_spans.append((match.start(), end))
+
+    if not drop_spans:
+        return markdown, []
+
+    kept: list[str] = []
+    cursor = 0
+    for start, end in drop_spans:
+        kept.append(markdown[cursor:start])
+        cursor = end
+    kept.append(markdown[cursor:])
+
+    return re.sub(r"\n{3,}", "\n\n", "".join(kept)).strip(), extracted
 
 
 class Command(BaseCommand):
@@ -215,6 +275,13 @@ class Command(BaseCommand):
                 if page_type == "class":
                     markdown, spell_list = split_spell_list(markdown)
 
+                # The GM named the subclass sections of the new classes.
+                sub_sections: list[tuple[str, str]] = []
+                if page_type == "class":
+                    wanted = CLASS_SUBCLASS_SECTIONS.get(stem.strip().lower())
+                    if wanted:
+                        markdown, sub_sections = split_named_sections(markdown, wanted)
+
                 was_created = self._upsert(
                     title=title,
                     page_type=page_type,
@@ -232,6 +299,28 @@ class Command(BaseCommand):
                     updated += 1
                 by_type[page_type] = by_type.get(page_type, 0) + 1
                 per_file.append(f"      - [{page_type}] {title[:70]}")
+
+                for section_title, section_markdown in sub_sections:
+                    made = self._upsert(
+                        title=section_title,
+                        page_type="subclass",
+                        category_slug="subclasses",
+                        item=DocxItem(title=section_title, markdown=section_markdown),
+                        categories=categories,
+                        parent_title=None,
+                        collisions=collisions,
+                        slug_hint=slugify(f"{title}-{section_title}"),
+                        as_child_of=title,
+                    )
+                    if made is not None:
+                        if made:
+                            created += 1
+                        else:
+                            updated += 1
+                        by_type["subclass"] = by_type.get("subclass", 0) + 1
+                        per_file.append(
+                            f"      - [subclass] {title}: {section_title[:52]}"
+                        )
 
                 if spell_list:
                     made = self._upsert(
