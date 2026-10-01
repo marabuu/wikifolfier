@@ -68,12 +68,15 @@ CLASS_HINTS = {
 
 # Subclasses whose file name does not carry a "(classe)" hint: matched by title.
 TITLE_HINTS = {
-    "circulo da lua": "wizard",
-    "circle of the moon": "wizard",
+    # Corrected by the GM: Circulo da Lua is a cleric option, Celestial is a
+    # warlock revision.
+    "circulo da lua": "cleric",
+    "circle of the moon": "cleric",
+    "celestial": "warlock",
     "horizon walker": "ranger",
     "eldritch invocation": "warlock",
-    "celestial": "cleric",
     "way of mercy": "monk",
+    "warrior of mercy": "monk",
     "way of shadow": "monk",
     "arcane ways": "wizard",
     "cosmic tinker": "artificer",
@@ -90,6 +93,14 @@ TITLE_HINTS = {
     "circulo da ordenacao dos mundos": "druid",
     "dominio da luz da lua": "cleric",
     "juramento dos escritores": "paladin",
+}
+
+# Renames and drops requested by the GM. None = do not import.
+TITLE_OVERRIDES = {
+    "way of mercy (revisado)": "Warrior of Mercy",
+    "way of mercy (revisado).": "Warrior of Mercy",
+    "o celestial (revisado)": None,
+    "o celestial (apenas 2014)": None,
 }
 
 # Longest alternatives first: "subraça" must win over "sub".
@@ -187,6 +198,15 @@ class Command(BaseCommand):
             for item in document.items:
                 title = (PREFIX_RE.sub("", item.title).strip()
                          or PREFIX_RE.sub("", stem).strip())
+
+                # GM overrides: rename or drop this entry.
+                if title.lower() in TITLE_OVERRIDES:
+                    override = TITLE_OVERRIDES[title.lower()]
+                    if override is None:
+                        per_file.append(f"      - [descartado] {title[:70]}")
+                        continue
+                    title = override
+
                 markdown = item.markdown
 
                 # Split the class spell list out, but create the class page
