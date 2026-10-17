@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.db.models import Count, Q
 from rest_framework import serializers
 
-from .models import Category, Page, PageLink, Tag
+from .models import Category, Page, PageLink, PageRevision, Tag
 from .rendering import strip_html
 from .services import save_page_with_derived_data
 
@@ -66,30 +66,40 @@ class PageDetailSerializer(PageListSerializer):
 
 
 class PageWriteSerializer(serializers.ModelSerializer):
-    tag_names = serializers.ListField(
-        child=serializers.CharField(max_length=60), write_only=True, required=False
-    )
-
     class Meta:
         model = Page
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "edition",
             "category", "parent_page", "source_content", "structured_data",
-            "visibility", "is_published", "position", "tag_names",
+            "visibility", "is_published", "position",
         )
 
     def create(self, validated_data):
-        tag_names = validated_data.pop("tag_names", [])
         page = Page(**validated_data)
-        save_page_with_derived_data(page, tag_names)
+        save_page_with_derived_data(page)
         return page
 
     def update(self, instance, validated_data):
-        tag_names = validated_data.pop("tag_names", None)
         for key, value in validated_data.items():
             setattr(instance, key, value)
-        save_page_with_derived_data(instance, tag_names)
+        save_page_with_derived_data(instance)
         return instance
+
+
+class PageContentSerializer(serializers.ModelSerializer):
+    """The public app editor can alter only the markdown body, never metadata/tags."""
+
+    class Meta:
+        model = Page
+        fields = ("source_content",)
+
+
+class PageRevisionSerializer(serializers.ModelSerializer):
+    changed_by = serializers.CharField(source="changed_by.username", read_only=True)
+
+    class Meta:
+        model = PageRevision
+        fields = ("id", "content", "status", "changed_by", "created_at")
 
 
 class PageLinkSerializer(serializers.ModelSerializer):

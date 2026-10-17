@@ -19,8 +19,17 @@ export default async function HomePage() {
 
   return (
     <AppLayout navigation={navigation}>
-      <BreadcrumbHome />
-      <h1 className="page-title">D&amp;D 2024</h1>
+      <section className="hero-panel">
+        <div className="hero-panel__content">
+          <p className="hero-panel__eyebrow">D&amp;D 2024 · Compêndio da campanha</p>
+          <h1>Forje sua lenda.</h1>
+          <p>Classes, subclasses, magias e regras para preparar sua próxima aventura.</p>
+          <div className="hero-panel__actions">
+            <Link className="button button--solid" href="/classes">Explorar classes</Link>
+            <Link className="button" href="/spells">Abrir grimório</Link>
+          </div>
+        </div>
+      </section>
       <p className="page-subtitle">Compêndio da campanha</p>
 
       <form className="search-box" action="/search" method="get">
@@ -35,7 +44,7 @@ export default async function HomePage() {
 
       {navigation.core.length > 0 && (
         <section className="home-group">
-          <h2 className="index-heading">D&amp;D 2024</h2>
+          <h2 className="section-heading">Navegar pelo compêndio</h2>
           <div className="home-grid">
             {navigation.core.map((category) => (
               <div key={category.slug}>
@@ -61,7 +70,7 @@ export default async function HomePage() {
 
       {navigation.campaign.length > 0 && (
         <section className="home-group">
-          <h2 className="index-heading">Campaign Content</h2>
+          <h2 className="section-heading">Conteúdo da campanha</h2>
           <div className="home-grid">
             {navigation.campaign.map((category) => (
               <Link key={category.slug} href={`/${category.slug}`}>
@@ -77,13 +86,5 @@ export default async function HomePage() {
         de campanha pertencem ao GM.
       </footer>
     </AppLayout>
-  );
-}
-
-function BreadcrumbHome() {
-  return (
-    <nav className="breadcrumbs" aria-label="Breadcrumb">
-      D&amp;D 2024
-    </nav>
   );
 }

@@ -11,7 +11,6 @@ export function Header() {
         </div>
         <div className="site-header__tools">
           <Link href="/search">Busca</Link>
-          <Link href="/admin/editor">Editor</Link>
         </div>
       </div>
     </header>

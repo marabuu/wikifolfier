@@ -4,6 +4,10 @@ import { api } from '@/lib/api';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { PageView } from '@/components/pages/PageView';
+import { ClassDirectory } from '@/components/catalog/ClassDirectory';
+import { SubclassDirectory } from '@/components/catalog/SubclassDirectory';
+import { MagicItemCollection } from '@/components/catalog/MagicItemCollection';
+import { CatalogCollection } from '@/components/catalog/CatalogCollection';
 import type { Category, PageLink, PageListItem } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -102,6 +106,41 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
 
   if (!category && pages.length === 0) notFound();
 
+  if (slug === 'classes') {
+    const childResults = await Promise.all(
+      pages.map(async (page) => [
+        page.slug,
+        await api.children(page.slug).catch(() => [] as PageListItem[]),
+      ] as const),
+    );
+    return (
+      <AppLayout navigation={navigation} currentSlug={slug}>
+        <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? slug }]} />
+        <ClassDirectory classes={pages} subclasses={Object.fromEntries(childResults)} />
+      </AppLayout>
+    );
+  }
+
+  if (slug === 'subclasses') {
+    return (
+      <AppLayout navigation={navigation} currentSlug={slug}>
+        <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? slug }]} />
+        <SubclassDirectory pages={pages} />
+      </AppLayout>
+    );
+  }
+
+  if (slug === 'magic-items') {
+    return (
+      <AppLayout navigation={navigation} currentSlug={slug}>
+        <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? 'Magic Items' }]} />
+        <h1 className="page-title">{category?.name ?? 'Magic Items'}</h1>
+        {category?.description && <p className="page-subtitle">{category.description}</p>}
+        <MagicItemCollection pages={pages} />
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout navigation={navigation} currentSlug={slug}>
       <Breadcrumbs
@@ -130,7 +169,10 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
       {pages.length === 0 ? (
         <p>Nenhuma página nesta categoria ainda.</p>
       ) : (
-        <ul className="index-list">
+        <>
+        <CatalogCollection pages={pages} showTitle={false} />
+        {/*
+        <ul className="index-list" hidden>
           {pages.map((page) => (
             <li key={page.id}>
               <Link href={page.url_path}>{page.title}</Link>
@@ -138,6 +180,8 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
             </li>
           ))}
         </ul>
+        */}
+        </>
       )}
 
       <footer className="page-footer">{pages.length} páginas nesta categoria.</footer>

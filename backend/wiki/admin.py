@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import BrokenLink, Category, ImportRun, Page, PageLink, Tag
+from .models import BrokenLink, Category, ImportRun, Page, PageLink, PageRevision, Tag
 
 
 class PageLinkInline(admin.TabularInline):
@@ -46,6 +46,13 @@ class TagAdmin(admin.ModelAdmin):
 admin.site.register(PageLink)
 admin.site.register(BrokenLink)
 admin.site.register(ImportRun)
+
+
+@admin.register(PageRevision)
+class PageRevisionAdmin(admin.ModelAdmin):
+    list_display = ("page", "status", "changed_by", "created_at")
+    list_filter = ("status",)
+    readonly_fields = ("page", "content", "status", "changed_by", "created_at")
 
 admin.site.site_header = "Compendium da Campanha"
 admin.site.site_title = "Compendium"

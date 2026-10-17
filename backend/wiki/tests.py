@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from unittest.mock import patch
 
 from wiki.models import BrokenLink, Category, Page, PageType, Source
 from wiki.rendering import render
@@ -157,11 +158,12 @@ class ApiTests(TestCase):
     def test_staff_can_create_page(self):
         User.objects.create_superuser("gm2", "gm2@example.com", "pw")
         self.client.login(username="gm2", password="pw")
-        response = self.client.post(
-            reverse("page-list"),
-            data='{"title":"Alert","page_type":"feat","source_content":"## Benefits"}',
-            content_type="application/json",
-        )
+        with patch.dict("os.environ", {"OWNER_USERNAME": "gm2"}):
+            response = self.client.post(
+                reverse("page-list"),
+                data='{"title":"Alert","page_type":"feat","source_content":"## Benefits"}',
+                content_type="application/json",
+            )
         self.assertEqual(response.status_code, 201, response.data)
         self.assertIn("<h2>Benefits</h2>", Page.objects.get(title="Alert").rendered_content)
 
@@ -187,6 +189,30 @@ class ApiTests(TestCase):
         )
         self.assertIn(response.status_code, (401, 403))
         self.assertEqual(render("[W](https://dnd5e.wikidot.com/)").internal_links, [])
+
+    def test_owner_content_edit_keeps_tags_and_can_rollback(self):
+        owner = User.objects.create_superuser("owner", "owner@example.com", "pw")
+        page = Page.objects.get(slug="wizard")
+        page.source_content = "Original"
+        save_page_with_derived_data(page, ["arcane"])
+        self.client.force_login(owner)
+        with patch.dict("os.environ", {"OWNER_USERNAME": "owner"}):
+            response = self.client.patch(
+                reverse("page-content", args=["wizard"]),
+                data='{"source_content":"Edited [link](https://example.com)"}',
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 200, response.data)
+            page.refresh_from_db()
+            self.assertEqual({tag.slug for tag in page.tags.all()}, {"arcane"})
+            revision = page.revisions.get()
+            response = self.client.post(
+                reverse("page-rollback", args=["wizard", revision.id]),
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 200, response.data)
+        page.refresh_from_db()
+        self.assertEqual(page.source_content, "Original")
 
     def test_scripts_are_sanitized(self):
         self.assertNotIn("<script>", render("<script>alert(1)</script>").html)

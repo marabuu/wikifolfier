@@ -231,6 +231,25 @@ class Page(models.Model):
         return self.to_links.select_related("source_page")
 
 
+class PageRevision(models.Model):
+    """An immutable content snapshot created by the in-app editor."""
+
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name="revisions")
+    content = models.TextField()
+    status = models.CharField(max_length=16, default="saved")
+    changed_by = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="page_revisions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:
+        return f"{self.page} revision {self.pk}"
+
+
 class PageLink(models.Model):
     """An internal reference between two pages."""
 

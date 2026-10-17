@@ -32,6 +32,7 @@ export function PageView({
         <span>{PAGE_TYPE_LABELS[page.page_type] ?? page.page_type}</span>
         {page.edition && <span>{page.edition}</span>}
         {page.visibility === 'gm_only' && <span className="badge-gm">GM Only</span>}
+        <a className="page-edit-link" href={`/editar/${page.slug}`}>Editar texto</a>
       </div>
 
       {page.page_type === 'spell' && spellHeader(structured as SpellData)}
@@ -86,13 +87,22 @@ export function PageView({
             {subclassLinks.length > 0 && (
               <>
                 <h2 className="index-heading">{isClass ? 'Subclasses' : 'Related Pages'}</h2>
-                <ul className="index-list">
+                <div className="catalog-grid subclass-grid">
                   {subclassLinks.map((child) => (
-                    <li key={child.id}>
-                      <a href={child.url_path}>{child.title}</a>
-                    </li>
+                    <a className="catalog-button" key={child.id} href={child.url_path}>
+                      <span>
+                        <span className="catalog-button__title">{child.title}</span>
+                        <span className="catalog-button__meta">
+                          {isClass
+                            ? isClassSpellList(child)
+                              ? 'Spell list'
+                              : 'Subclass'
+                            : 'Related page'}
+                        </span>
+                      </span>
+                    </a>
                   ))}
-                </ul>
+                </div>
               </>
             )}
 

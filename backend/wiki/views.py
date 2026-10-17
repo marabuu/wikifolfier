@@ -6,21 +6,25 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import BrokenLink, Category, Page, Source, Visibility
+from .models import BrokenLink, Category, Page, PageRevision, Source, Visibility
+from .permissions import user_is_owner
 from .rendering import render
 from .search import search_pages
+from .services import save_page_with_derived_data
 from .serializers import (
     BrokenLinkSerializer,
     CategorySerializer,
     PageDetailSerializer,
     PageLinkSerializer,
     PageListSerializer,
+    PageContentSerializer,
+    PageRevisionSerializer,
     PageWriteSerializer,
     TagSerializer,
 )
@@ -46,7 +50,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return Response(CategorySerializer(roots, many=True, context={"request": request}).data)
 
 
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(viewsets.ReadOnlyModelViewSet):
     from .models import Tag
 
     queryset = Tag.objects.all()
@@ -60,6 +64,7 @@ class SpellFilterBackend(DjangoFilterBackend):
     SPELL_CLASSES = {
         "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
         "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+        "runescaper", "filho-da-magia", "heroi",
     }
 
     def filter_queryset(self, request, queryset, view):
@@ -150,6 +155,45 @@ class PageViewSet(viewsets.ModelViewSet):
         result = render(request.data.get("markdown", ""))
         return Response({"html": result.html, "links": result.internal_links})
 
+    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
+    def content(self, request, slug=None):
+        """Save a markdown-only revision. Tags and all page metadata stay untouched."""
+        if not user_is_owner(request.user):
+            return Response({"detail": "Apenas o proprietário pode editar."}, status=403)
+        page = self.get_object()
+        serializer = PageContentSerializer(page, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        content = serializer.validated_data.get("source_content", page.source_content)
+        if content == page.source_content:
+            return Response(PageDetailSerializer(page, context={"request": request}).data)
+        PageRevision.objects.create(
+            page=page, content=page.source_content, status="saved", changed_by=request.user
+        )
+        page.source_content = content
+        save_page_with_derived_data(page)
+        return Response(PageDetailSerializer(page, context={"request": request}).data)
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def revisions(self, request, slug=None):
+        if not user_is_owner(request.user):
+            return Response({"detail": "Apenas o proprietário pode consultar revisões."}, status=403)
+        return Response(PageRevisionSerializer(self.get_object().revisions.all(), many=True).data)
+
+    @action(detail=True, methods=["post"], url_path=r"revisions/(?P<revision_id>[^/.]+)/rollback", permission_classes=[IsAuthenticated])
+    def rollback(self, request, slug=None, revision_id=None):
+        if not user_is_owner(request.user):
+            return Response({"detail": "Apenas o proprietário pode restaurar revisões."}, status=403)
+        page = self.get_object()
+        revision = get_object_or_404(PageRevision, pk=revision_id, page=page)
+        PageRevision.objects.create(
+            page=page, content=page.source_content, status="rolled_back", changed_by=request.user
+        )
+        page.source_content = revision.content
+        save_page_with_derived_data(page)
+        revision.status = "restored"
+        revision.save(update_fields=["status"])
+        return Response(PageDetailSerializer(page, context={"request": request}).data)
+
 
 class BrokenLinkViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BrokenLink.objects.select_related("source_page")
@@ -222,6 +266,7 @@ class SpellIndexView(APIView):
     CLASSES = [
         "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
         "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+        "runescaper", "filho-da-magia", "heroi",
     ]
 
     CACHE_TTL = 60.0
