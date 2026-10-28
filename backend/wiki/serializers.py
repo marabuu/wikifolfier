@@ -3,6 +3,8 @@ from __future__ import annotations
 from django.db.models import Count, Q
 from rest_framework import serializers
 
+from datetime import datetime, timezone
+
 from .models import Category, Page, PageLink, PageRevision, Tag
 from .rendering import strip_html
 from .services import save_page_with_derived_data
@@ -40,7 +42,7 @@ class PageListSerializer(serializers.ModelSerializer):
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "source_label",
             "edition", "category", "subcategory", "url_path", "visibility", "excerpt",
-            "structured_data",
+            "structured_data", "is_published", "app_modified_at",
         )
 
     def get_excerpt(self, obj: Page) -> str:
@@ -76,12 +78,14 @@ class PageWriteSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         page = Page(**validated_data)
+        page.app_modified_at = datetime.now(timezone.utc)
         save_page_with_derived_data(page)
         return page
 
     def update(self, instance, validated_data):
         for key, value in validated_data.items():
             setattr(instance, key, value)
+        instance.app_modified_at = datetime.now(timezone.utc)
         save_page_with_derived_data(instance)
         return instance
 

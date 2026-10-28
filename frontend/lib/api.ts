@@ -30,8 +30,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   navigation: () => request<Navigation>('/navigation'),
   categories: () => request<Category[]>('/categories/'),
-  pagesByCategory: (slug: string) =>
-    request<{ results: PageListItem[] }>(`/pages/?category__slug=${slug}&page_size=500`),
+  preview: (markdown: string, token?: string) =>
+    request<{ html: string }>('/pages/preview/', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: JSON.stringify({ markdown }),
+    }),
+
   page: (slug: string) => request<PageDetail>(`/pages/${slug}/`),
   backlinks: (slug: string) => request<PageLink[]>(`/pages/${slug}/backlinks/`),
   children: (slug: string) => request<PageListItem[]>(`/pages/${slug}/children/`),
@@ -41,11 +46,23 @@ export const api = {
     request<SpellIndexResponse>(`/spells-index?${params.toString()}`),
   pages: (query: string) =>
     request<{ results: PageListItem[] }>(`/pages/?${query}&page_size=2000`),
-  preview: (markdown: string, token?: string) =>
-    request<{ html: string }>('/pages/preview/', {
+
+  pageCreate: (data: Record<string, unknown>, token: string) =>
+    request<PageDetail>('/pages/', {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: JSON.stringify({ markdown }),
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    }),
+  pageUpdate: (slug: string, data: Record<string, unknown>, token: string) =>
+    request<PageDetail>(`/pages/${slug}/`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data),
+    }),
+  pageDelete: (slug: string, token: string) =>
+    request<null>(`/pages/${slug}/`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
     }),
 };
 

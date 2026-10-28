@@ -1,18 +1,18 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { AppLayout } from '@/components/layout/AppLayout';
-import type { Category } from '@/lib/types';
+import { WhatsNewSection } from '@/components/catalog/WhatsNewSection';
+import type { Category, PageListItem } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Homepage = index of the compendium. Not a landing page:
- * it lists the content structure directly.
- */
 export default async function HomePage() {
   let navigation = { core: [] as Category[], campaign: [] as Category[] };
+  let recentPages: PageListItem[] = [];
   try {
     navigation = await api.navigation();
+    const data = await api.pages('app_modified_at__isnull=false&ordering=-app_modified_at&page_size=5');
+    recentPages = data.results ?? [];
   } catch {
     // API offline: still render the shell so the structure is visible.
   }
@@ -41,6 +41,27 @@ export default async function HomePage() {
         />
         <button type="submit">Buscar</button>
       </form>
+
+      <WhatsNewSection />
+
+      {recentPages.length > 0 && (
+        <section className="home-group">
+          <h2 className="section-heading">Últimas atualizações</h2>
+          <ul className="index-list">
+            {recentPages.map((page) => (
+              <li key={page.id}>
+                <Link href={page.url_path}>{page.title}</Link>
+                <span style={{ color: '#777', marginLeft: 8, fontSize: 13 }}>
+                  {new Date(page.app_modified_at ?? '').toLocaleDateString('pt-BR')}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p style={{ marginTop: 8 }}>
+            <Link href="/changelog">Ver mais →</Link>
+          </p>
+        </section>
+      )}
 
       {navigation.core.length > 0 && (
         <section className="home-group">

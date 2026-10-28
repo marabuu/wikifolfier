@@ -4,6 +4,7 @@ import time
 
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -101,23 +102,24 @@ class PageViewSet(viewsets.ModelViewSet):
     lookup_field = "slug"
     lookup_value_regex = "[^/]+"
     filter_backends = [SpellFilterBackend] + list(api_settings.DEFAULT_FILTER_BACKENDS)
-    filterset_fields = [
-        "page_type",
-        "source",
-        "edition",
-        "visibility",
-        "category",
-        "is_published",
-        "parent_page__slug",
-    ]
-    # Friendly filters: the frontend works with readable slugs, not FK ids.
-    filterset_fields = filterset_fields + [
-        "category__slug",
-        "subcategory__slug",
-        "tags__slug",
-    ]
+    filterset_fields = {
+        "page_type": ["exact"],
+        "source": ["exact"],
+        "edition": ["exact"],
+        "visibility": ["exact"],
+        "category": ["exact"],
+        "is_published": ["exact"],
+        "parent_page__slug": ["exact"],
+        # The home page and changelog must only show pages changed through
+        # the application, which are marked with this timestamp.
+        "app_modified_at": ["exact", "isnull"],
+        # Friendly filters: the frontend works with readable slugs, not FK ids.
+        "category__slug": ["exact"],
+        "subcategory__slug": ["exact"],
+        "tags__slug": ["exact"],
+    }
     search_fields = ["title", "subtitle"]
-    ordering_fields = ["title", "updated_at", "page_type"]
+    ordering_fields = ["title", "updated_at", "app_modified_at", "page_type"]
 
     def get_queryset(self):
         return visible_pages(self.request).prefetch_related("tags")
@@ -170,6 +172,7 @@ class PageViewSet(viewsets.ModelViewSet):
             page=page, content=page.source_content, status="saved", changed_by=request.user
         )
         page.source_content = content
+        page.app_modified_at = timezone.now()
         save_page_with_derived_data(page)
         return Response(PageDetailSerializer(page, context={"request": request}).data)
 
@@ -286,8 +289,14 @@ class SpellIndexView(APIView):
             return Response(cached)
 
         # Unearthed Arcana spells have their own page and stay out of the index.
+        # The has_key guard matters: without it, `NOT (path LIKE 'ua:%')` is NULL
+        # in SQL for spells that have no wikidot_path key at all (folfier/homebrew
+        # spells), silently dropping them from the index.
         queryset = visible_pages(request).filter(page_type="spell")
-        queryset = queryset.exclude(structured_data__wikidot_path__startswith="ua:")
+        queryset = queryset.exclude(
+            Q(structured_data__has_key="wikidot_path"),
+            Q(structured_data__wikidot_path__startswith="ua:"),
+        )
 
         if level not in (None, ""):
             try:
@@ -298,11 +307,17 @@ class SpellIndexView(APIView):
         if school:
             queryset = queryset.filter(structured_data__school__iexact=school)
 
-        if klass and klass in self.CLASSES:
-            queryset = queryset.filter(
-                Q(structured_data__classes__contains=[klass])
-                | Q(tags__slug=klass)
-            ).distinct()
+        if klass:
+            slug = klass.strip().lower()
+            if slug in self.CLASSES:
+                # Corresponde ao slug (como os importadores gravam) e também à
+                # tag da classe. A normalização em minúsculas evita falhar quando
+                # os dados guardam a classe com acento/maiusculas (ex.: "Runescaper",
+                # "Filho da Magia", "Herói").
+                queryset = queryset.filter(
+                    Q(structured_data__classes__contains=[slug])
+                    | Q(tags__slug=slug)
+                ).distinct()
 
         rows = queryset.order_by("title")[:600]
         results = SpellIndexItemSerializer(rows, many=True).data

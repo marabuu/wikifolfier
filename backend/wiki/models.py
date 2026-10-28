@@ -177,6 +177,8 @@ class Page(models.Model):
     search_vector = SearchVectorField(null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Set only when the page is created or edited through the app (not during import).
+    app_modified_at = models.DateTimeField(null=True, blank=True, default=None)
 
     objects = PageQuerySet.as_manager()
 

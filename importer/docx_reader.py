@@ -21,6 +21,7 @@ import docx
 from docx.table import Table
 from docx.oxml.ns import qn
 from docx.text.paragraph import Paragraph
+from django.utils.text import slugify
 
 SEPARATOR_RE = re.compile(r"^_{10,}$")
 
@@ -316,10 +317,17 @@ def extract_structured(text: str) -> dict:
         if not value or value == ":":
             continue
         if key == "classes":
-            classes = [
-                c.strip() for c in re.split(r"[;,/]", value)
-                if c.strip() and len(c.strip()) <= 30
-            ]
+            classes = []
+            for raw in re.split(r"[;,/]", value):
+                raw = raw.strip()
+                if not raw or len(raw) > 30:
+                    continue
+                # Gravado como slug (ex.: "Runescaper" -> "runescaper",
+                # "Filho da Magia" -> "filho-da-magia", "Herói" -> "heroi") para
+                # bater com o filtro do índice de magias.
+                slug = slugify(raw)
+                if slug and slug not in classes:
+                    classes.append(slug)
             if classes:
                 data["classes"] = classes
         else:

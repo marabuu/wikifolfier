@@ -74,9 +74,11 @@ ITEM_TYPE_RE = re.compile(
 SPELL_LIST_RE = re.compile(r"Spell Lists?\.", re.IGNORECASE)
 
 # Class names used to recognise the per-class tags the wiki puts on spells.
+# Includes the campaign's homebrew classes so their spells are recognised too.
 CLASS_NAMES = {
     "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
     "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
+    "runescaper", "filho-da-magia", "heroi",
 }
 
 
@@ -182,6 +184,8 @@ class Converter:
         raw_classes.update(t for t in parsed.tags if t in CLASS_NAMES)
 
         # Normalise: "wizard", "Wizard" and "WIZARD" are the same class.
+        # Homebrew classes (runescaper, filho-da-magia, heroi) are stored as
+        # slugs so the spell-index filter can find them by slug.
         classes: set[str] = set()
         for name in raw_classes:
             slug = name.strip().lower()

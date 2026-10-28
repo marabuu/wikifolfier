@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 from unittest.mock import patch
 
 from wiki.models import BrokenLink, Category, Page, PageType, Source
@@ -120,6 +121,20 @@ class ApiTests(TestCase):
     def test_homebrew_listed_together_with_wikidot(self):
         response = self.client.get(reverse("page-list"), {"page_type": "class"})
         self.assertEqual(response.data["count"], 2)
+
+    def test_changelog_filter_only_returns_pages_edited_in_the_app(self):
+        changed = Page.objects.get(slug="wizard")
+        changed.app_modified_at = timezone.now()
+        changed.save(update_fields=["app_modified_at"])
+
+        response = self.client.get(
+            reverse("page-list"),
+            {"app_modified_at__isnull": "false", "ordering": "-app_modified_at"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["slug"], "wizard")
 
     def test_detail_by_slug(self):
         response = self.client.get(reverse("page-detail", args=["wizard"]))

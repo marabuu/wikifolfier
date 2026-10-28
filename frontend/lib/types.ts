@@ -64,6 +64,10 @@ export interface PageListItem {
   visibility: Visibility;
   excerpt: string;
   structured_data?: Record<string, unknown>;
+  is_published?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  app_modified_at?: string;
 }
 
 export interface PageDetail extends PageListItem {

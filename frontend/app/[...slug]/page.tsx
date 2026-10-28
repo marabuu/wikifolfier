@@ -107,16 +107,22 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
   if (!category && pages.length === 0) notFound();
 
   if (slug === 'classes') {
+    // UA content belongs to its own catalogue.  "Revised" class entries are
+    // alternate versions, not separate player-class choices.  Do not use the
+    // number of linked children here: older imports can have valid subclasses
+    // without the parent_page relationship populated.
+    const classes = pages.filter((page) => !isUnearthedArcana(page) && !isRevisedClass(page));
     const childResults = await Promise.all(
-      pages.map(async (page) => [
+      classes.map(async (page) => [
         page.slug,
         await api.children(page.slug).catch(() => [] as PageListItem[]),
       ] as const),
     );
+    const subclasses = Object.fromEntries(childResults);
     return (
       <AppLayout navigation={navigation} currentSlug={slug}>
         <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? slug }]} />
-        <ClassDirectory classes={pages} subclasses={Object.fromEntries(childResults)} />
+        <ClassDirectory classes={classes} subclasses={subclasses} />
       </AppLayout>
     );
   }
@@ -187,6 +193,15 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
       <footer className="page-footer">{pages.length} páginas nesta categoria.</footer>
     </AppLayout>
   );
+}
+
+function isUnearthedArcana(page: PageListItem): boolean {
+  return typeof page.structured_data?.wikidot_path === 'string'
+    && page.structured_data.wikidot_path.startsWith('ua:');
+}
+
+function isRevisedClass(page: PageListItem): boolean {
+  return /\b(?:revised|revision|revis(?:ão|ao|ado))\b/i.test(page.title);
 }
 
 function findCategory(items: Category[], slug: string): Category | undefined {
