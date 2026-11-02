@@ -3,16 +3,19 @@ import { api } from '@/lib/api';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { WhatsNewSection } from '@/components/catalog/WhatsNewSection';
 import type { Category, PageListItem } from '@/lib/types';
+import type { ContentModule } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   let navigation = { core: [] as Category[], campaign: [] as Category[] };
   let recentPages: PageListItem[] = [];
+  let modules: ContentModule[] = [];
   try {
     navigation = await api.navigation();
     const data = await api.pages('app_modified_at__isnull=false&ordering=-app_modified_at&page_size=5');
     recentPages = data.results ?? [];
+    modules = await api.modules();
   } catch {
     // API offline: still render the shell so the structure is visible.
   }
@@ -85,6 +88,17 @@ export default async function HomePage() {
                 )}
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {modules.length > 0 && (
+        <section className="home-group">
+          <h2 className="section-heading">Módulos instalados</h2>
+          <div className="home-grid">
+            {modules.map((module) => <Link key={module.slug} href={module.url_path}>
+              {module.name}{module.page_count != null ? ` (${module.page_count})` : ''}
+            </Link>)}
           </div>
         </section>
       )}

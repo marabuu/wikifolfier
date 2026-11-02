@@ -7,6 +7,7 @@ router = DefaultRouter()
 router.register("pages", views.PageViewSet, basename="page")
 router.register("categories", views.CategoryViewSet, basename="category")
 router.register("tags", views.TagViewSet, basename="tag")
+router.register("modules", views.ContentModuleViewSet, basename="module")
 router.register("broken-links", views.BrokenLinkViewSet, basename="brokenlink")
 
 urlpatterns = [

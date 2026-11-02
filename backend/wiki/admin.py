@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import BrokenLink, Category, ImportRun, Page, PageLink, PageRevision, Tag
+from .models import BrokenLink, Category, ContentModule, ImportRun, Page, PageLink, PageRevision, Tag
 
 
 class PageLinkInline(admin.TabularInline):
@@ -20,7 +20,7 @@ class PageAdmin(admin.ModelAdmin):
     inlines = [PageLinkInline]
     readonly_fields = ("created_at", "updated_at")
     fieldsets = (
-        (None, {"fields": ("title", "subtitle", "slug", "page_type", "category", "parent_page")}),
+        (None, {"fields": ("title", "subtitle", "slug", "page_type", "module", "category", "parent_page")}),
         ("Metadados", {
             "fields": ("source", "edition", "visibility", "is_published", "tags", "position")
         }),
@@ -34,6 +34,13 @@ class CategoryAdmin(admin.ModelAdmin):
     list_display = ("name", "parent", "sidebar_group", "in_sidebar", "position")
     list_filter = ("sidebar_group", "in_sidebar")
     prepopulated_fields = {"slug": ("name",)}
+
+
+@admin.register(ContentModule)
+class ContentModuleAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "version", "is_enabled", "updated_at")
+    list_filter = ("is_enabled",)
+    search_fields = ("name", "slug")
 
 
 @admin.register(Tag)

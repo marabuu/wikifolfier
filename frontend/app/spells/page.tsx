@@ -12,6 +12,8 @@ const CLASS_LABELS: Record<string, string> = {
   druid: 'Druid', fighter: 'Fighter', monk: 'Monk', paladin: 'Paladin',
   ranger: 'Ranger', rogue: 'Rogue', sorcerer: 'Sorcerer', warlock: 'Warlock', wizard: 'Wizard',
   runescaper: 'Runescaper', 'filho-da-magia': 'Nascido da Magia', heroi: 'Herói',
+  'cavaleiro-da-morte': 'Cavaleiro da Morte', 'cacador-de-demonios': 'Caçador de Demônios',
+  xama: 'Xamã', witcher: 'Witcher', dovahkiin: 'Dovahkiin',
 };
 
 type SpellFields = {

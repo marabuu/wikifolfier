@@ -20,6 +20,7 @@ from django.utils.text import slugify
 
 from wiki.models import Category, Page, PageType
 from wiki.services import save_page_with_derived_data
+from wiki.management.commands.normalize_spells import parse_spell_data
 
 
 class Command(BaseCommand):
@@ -103,8 +104,11 @@ class Command(BaseCommand):
         created = 0
         updated = 0
 
-        for title, content in pages:
+        for title, page_content in pages:
             slug = slugify(title)[:120]
+            structured = {}
+            if page_type == "spell":
+                structured = parse_spell_data(page_content.strip(), slug=slug)
             page, is_new = Page.objects.update_or_create(
                 slug=slug,
                 defaults={
@@ -115,11 +119,11 @@ class Command(BaseCommand):
                     "edition": edition,
                     "category": category,
                     "parent_page": None,
-                    "source_content": content.strip(),
+                    "source_content": page_content.strip(),
                     "visibility": "public",
                     "is_published": True,
                     "position": 0,
-                    "structured_data": {},
+                    "structured_data": structured,
                 },
             )
             save_page_with_derived_data(page)

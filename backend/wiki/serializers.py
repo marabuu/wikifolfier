@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from datetime import datetime, timezone
 
-from .models import Category, Page, PageLink, PageRevision, Tag
+from .models import Category, ContentModule, Page, PageLink, PageRevision, Tag
 from .rendering import strip_html
 from .services import save_page_with_derived_data
 
@@ -31,17 +31,28 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ("id", "name", "slug")
 
 
+class ContentModuleSerializer(serializers.ModelSerializer):
+    page_count = serializers.IntegerField(read_only=True, required=False)
+    url_path = serializers.CharField(source="get_absolute_url", read_only=True)
+
+    class Meta:
+        model = ContentModule
+        fields = ("id", "slug", "name", "description", "source_url", "version",
+                  "is_enabled", "page_count", "url_path")
+
+
 class PageListSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     subcategory = CategorySerializer(read_only=True)
     source_label = serializers.CharField(read_only=True)
+    module = ContentModuleSerializer(read_only=True)
     excerpt = serializers.SerializerMethodField()
 
     class Meta:
         model = Page
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "source_label",
-            "edition", "category", "subcategory", "url_path", "visibility", "excerpt",
+            "edition", "module", "category", "subcategory", "url_path", "visibility", "excerpt",
             "structured_data", "is_published", "app_modified_at",
         )
 
@@ -72,7 +83,7 @@ class PageWriteSerializer(serializers.ModelSerializer):
         model = Page
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "edition",
-            "category", "parent_page", "source_content", "structured_data",
+            "module", "category", "parent_page", "source_content", "structured_data",
             "visibility", "is_published", "position",
         )
 

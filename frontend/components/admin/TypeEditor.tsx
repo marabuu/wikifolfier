@@ -169,7 +169,7 @@ export function TypeEditor({ pageType, typeLabel, slug, initialContent, onSave }
               <label>Classes que podem conjurar</label>
               <select multiple size={4} onChange={(e) => { const values = Array.from(e.target.selectedOptions, (o) => o.value); setStructuredData({ ...structuredData, classes: values }); }} style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--card)', color: 'var(--ink)', marginTop: 4 }}>
                 <option value="">—</option>
-                {['artificer', 'barbarian', 'bard', 'cleric', 'druid', 'fighter', 'monk', 'paladin', 'ranger', 'rogue', 'sorcerer', 'warlock', 'wizard', 'runescaper', 'filho-da-magia', 'heroi'].map((c) => (
+                {['artificer', 'barbarian', 'bard', 'cleric', 'druid', 'fighter', 'monk', 'paladin', 'ranger', 'rogue', 'sorcerer', 'warlock', 'wizard', 'runescaper', 'filho-da-magia', 'heroi', 'cavaleiro-da-morte', 'cacador-de-demonios', 'xama', 'witcher', 'dovahkiin'].map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>

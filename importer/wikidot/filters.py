@@ -110,6 +110,8 @@ def page_type_for(path: str) -> str:
     if ns in CLASS_SUBCLASS_NAMESPACES or ns in CLASS_NAMES:
         return "class" if tail in {"main", "_home", ""} else "subclass"
     if ns in NAMESPACE_TO_PAGE_TYPE:
+        if ns == "spell" and tail.endswith("-school"):
+            return "rule"
         mapped = NAMESPACE_TO_PAGE_TYPE[ns]
         if ns in {"item", "magicitem", "magic-item"} and _WEAPON_HINT.search(tail):
             return "weapon"

@@ -109,6 +109,28 @@ class Tag(models.Model):
     def __str__(self) -> str:
         return self.name
 
+
+class ContentModule(models.Model):
+    """An independently installed compendium source."""
+
+    slug = models.SlugField(max_length=80, unique=True)
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True)
+    source_url = models.URLField(blank=True)
+    version = models.CharField(max_length=40, blank=True)
+    is_enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def get_absolute_url(self) -> str:
+        return f"/modules/{self.slug}"
+
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify(self.name)
@@ -136,6 +158,14 @@ class Page(models.Model):
         max_length=32, choices=Source.choices, default=Source.CUSTOM, db_index=True
     )
     edition = models.CharField(max_length=60, blank=True, default="D&D 2024")
+    module = models.ForeignKey(
+        ContentModule,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="pages",
+        help_text="Optional isolated compendium module.",
+    )
     category = models.ForeignKey(
         Category, null=True, blank=True, on_delete=models.SET_NULL, related_name="pages"
     )
@@ -206,6 +236,10 @@ class Page(models.Model):
     # --- structure -------------------------------------------------------
     @property
     def url_path(self) -> str:
+        if self.module:
+            if self.category and self.category.slug:
+                return f"/modules/{self.module.slug}/{self.category.slug}/{self.slug}"
+            return f"/modules/{self.module.slug}/{self.slug}"
         if self.category and self.category.slug:
             return f"/{self.category.slug}/{self.slug}"
         return f"/{self.slug}"

@@ -6,6 +6,7 @@ import type {
   PageListItem,
   SearchResponse,
   SpellIndexResponse,
+  ContentModule,
 } from './types';
 
 export const API_URL =
@@ -46,6 +47,8 @@ export const api = {
     request<SpellIndexResponse>(`/spells-index?${params.toString()}`),
   pages: (query: string) =>
     request<{ results: PageListItem[] }>(`/pages/?${query}&page_size=2000`),
+  modules: () => request<ContentModule[]>('/modules/'),
+  module: (slug: string) => request<ContentModule>(`/modules/${slug}/`),
 
   pageCreate: (data: Record<string, unknown>, token: string) =>
     request<PageDetail>('/pages/', {

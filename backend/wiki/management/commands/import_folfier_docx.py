@@ -24,6 +24,7 @@ from docx_reader import DocxItem, parse_docx  # noqa: E402
 
 from wiki.models import Category, Page, Source  # noqa: E402
 from wiki.services import save_page_with_derived_data  # noqa: E402
+from wiki.management.commands.normalize_spells import parse_spell_data  # noqa: E402
 
 ROOT = Path(r"E:\dev\wikifolfier2\conteudo a adicionar")
 
@@ -640,11 +641,15 @@ class Command(BaseCommand):
                         markdown, title, slugify(f"{title}-spell-list")
                     )
 
+                struct_data = dict(item.structured_data or {})
+                if page_type == "spell":
+                    struct_data = {**parse_spell_data(markdown, slug=slugify(title)), **struct_data}
+
                 was_created = self._upsert(
                     title=title,
                     page_type=page_type,
                     category_slug=category_slug,
-                    item=DocxItem(title=title, markdown=markdown),
+                    item=DocxItem(title=title, markdown=markdown, structured_data=struct_data),
                     categories=categories,
                     parent_title=parent_title,
                     collisions=collisions,

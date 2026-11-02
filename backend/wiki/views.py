@@ -13,7 +13,7 @@ from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import BrokenLink, Category, Page, PageRevision, Source, Visibility
+from .models import BrokenLink, Category, ContentModule, Page, PageRevision, Source, Visibility
 from .permissions import user_is_owner
 from .rendering import render
 from .search import search_pages
@@ -28,12 +28,13 @@ from .serializers import (
     PageRevisionSerializer,
     PageWriteSerializer,
     TagSerializer,
+    ContentModuleSerializer,
 )
 
 
 def visible_pages(request):
-    qs = Page.objects.published().select_related("category", "parent_page")
-    return qs.visible_to(request.user)
+    qs = Page.objects.published().select_related("category", "parent_page", "module")
+    return qs.filter(Q(module__isnull=True) | Q(module__is_enabled=True)).visible_to(request.user)
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -59,6 +60,16 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
 
 
+class ContentModuleViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = ContentModuleSerializer
+    pagination_class = None
+
+    def get_queryset(self):
+        return ContentModule.objects.filter(is_enabled=True).annotate(
+            page_count=Count("pages", filter=Q(pages__is_published=True))
+        )
+
+
 class SpellFilterBackend(DjangoFilterBackend):
     """Extra filters for the spell index: level, school and casting class."""
 
@@ -66,6 +77,7 @@ class SpellFilterBackend(DjangoFilterBackend):
         "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
         "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
         "runescaper", "filho-da-magia", "heroi",
+        "cavaleiro-da-morte", "cacador-de-demonios", "xama",
     }
 
     def filter_queryset(self, request, queryset, view):
@@ -105,6 +117,7 @@ class PageViewSet(viewsets.ModelViewSet):
     filterset_fields = {
         "page_type": ["exact"],
         "source": ["exact"],
+        "module__slug": ["exact"],
         "edition": ["exact"],
         "visibility": ["exact"],
         "category": ["exact"],
@@ -211,6 +224,7 @@ class SearchView(APIView):
 
         page_type = request.query_params.get("type")
         source = request.query_params.get("source")
+        module = request.query_params.get("module")
         category = request.query_params.get("category")
         for tag in request.query_params.getlist("tag"):
             qs = qs.filter(tags__slug=tag)
@@ -219,6 +233,8 @@ class SearchView(APIView):
             qs = qs.filter(page_type=page_type)
         if source:
             qs = qs.filter(source=source)
+        if module:
+            qs = qs.filter(module__slug=module)
         if category:
             # Accept either the category id or its readable slug.
             if str(category).isdigit():
@@ -270,6 +286,7 @@ class SpellIndexView(APIView):
         "artificer", "barbarian", "bard", "cleric", "druid", "fighter",
         "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard",
         "runescaper", "filho-da-magia", "heroi",
+        "cavaleiro-da-morte", "cacador-de-demonios", "xama",
     ]
 
     CACHE_TTL = 60.0
@@ -297,6 +314,7 @@ class SpellIndexView(APIView):
             Q(structured_data__has_key="wikidot_path"),
             Q(structured_data__wikidot_path__startswith="ua:"),
         )
+        queryset = queryset.exclude(slug__endswith="-spells")
 
         if level not in (None, ""):
             try:

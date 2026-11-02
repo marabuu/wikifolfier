@@ -57,6 +57,7 @@ export interface PageListItem {
   page_type: PageType;
   source: Source;
   source_label: string;
+  module: ContentModule | null;
   edition: string;
   category: Category | null;
   subcategory: Category | null;
@@ -68,6 +69,18 @@ export interface PageListItem {
   created_at?: string;
   updated_at?: string;
   app_modified_at?: string;
+}
+
+export interface ContentModule {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  source_url: string;
+  version: string;
+  is_enabled: boolean;
+  page_count?: number;
+  url_path: string;
 }
 
 export interface PageDetail extends PageListItem {
