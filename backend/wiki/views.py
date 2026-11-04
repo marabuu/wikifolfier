@@ -40,6 +40,19 @@ def visible_pages(request):
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer
     pagination_class = None
+    _cache = None
+    _cache_time = 0.0
+    CACHE_TTL = 60.0
+
+    def list(self, request, *args, **kwargs):
+        now = time.monotonic()
+        if self._cache and now - self._cache_time < self.CACHE_TTL:
+            return Response(self._cache)
+        response = super().list(request, *args, **kwargs)
+        if response.status_code == 200:
+            self._cache = response.data
+            self._cache_time = now
+        return response
 
     def get_queryset(self):
         return Category.objects.annotate(
@@ -134,8 +147,49 @@ class PageViewSet(viewsets.ModelViewSet):
     search_fields = ["title", "subtitle"]
     ordering_fields = ["title", "updated_at", "app_modified_at", "page_type"]
 
+    _list_cache = {}
+    _list_cache_time = {}
+    CACHE_TTL = 60.0
+
     def get_queryset(self):
-        return visible_pages(self.request).prefetch_related("tags")
+        qs = visible_pages(self.request).prefetch_related("tags")
+        if self.action == "list":
+            return qs.defer("rendered_content", "source_content")
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return super().list(request, *args, **kwargs)
+
+        cache_key = request.get_full_path()
+        now = time.monotonic()
+        cached = self._list_cache.get(cache_key)
+        if cached is not None and now - self._list_cache_time.get(cache_key, 0) < self.CACHE_TTL:
+            return Response(cached)
+
+        response = super().list(request, *args, **kwargs)
+        if response.status_code == 200:
+            if len(self._list_cache) > 200:
+                self._list_cache.clear()
+                self._list_cache_time.clear()
+            self._list_cache[cache_key] = response.data
+            self._list_cache_time[cache_key] = now
+        return response
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        PageViewSet._list_cache.clear()
+        PageViewSet._list_cache_time.clear()
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        PageViewSet._list_cache.clear()
+        PageViewSet._list_cache_time.clear()
+
+    def perform_destroy(self, instance):
+        super().perform_destroy(instance)
+        PageViewSet._list_cache.clear()
+        PageViewSet._list_cache_time.clear()
 
     def get_serializer_class(self):
         if self.action in {"create", "update", "partial_update"}:
@@ -187,6 +241,8 @@ class PageViewSet(viewsets.ModelViewSet):
         page.source_content = content
         page.app_modified_at = timezone.now()
         save_page_with_derived_data(page)
+        PageViewSet._list_cache.clear()
+        PageViewSet._list_cache_time.clear()
         return Response(PageDetailSerializer(page, context={"request": request}).data)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
@@ -249,7 +305,7 @@ class SearchView(APIView):
             {
                 "query": term,
                 "count": qs.count(),
-                "results": PageListSerializer(qs[:100], many=True).data,
+                "results": PageListSerializer(qs[:100], many=True, context={"include_excerpt": True}).data,
                 "filters": {
                     "types": [c[0] for c in Page._meta.get_field("page_type").choices],
                     "sources": [c[0] for c in Source.choices],
@@ -366,7 +422,14 @@ class SpellIndexView(APIView):
 
 
 class NavigationView(APIView):
+    CACHE_TTL = 60.0
+    _cache = None
+    _cache_time = 0.0
+
     def get(self, request):
+        now = time.monotonic()
+        if self._cache and now - self._cache_time < self.CACHE_TTL:
+            return Response(self._cache)
         qs = Category.objects.filter(in_sidebar=True).prefetch_related("children")
         payload = {"core": [], "campaign": []}
         for cat in qs.filter(parent__isnull=True):
@@ -374,6 +437,8 @@ class NavigationView(APIView):
             payload[bucket].append(
                 CategorySerializer(cat, context={"request": request}).data
             )
+        self._cache = payload
+        self._cache_time = now
         return Response(payload)
 
 

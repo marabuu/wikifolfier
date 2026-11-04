@@ -66,6 +66,7 @@ export interface PageListItem {
   excerpt: string;
   structured_data?: Record<string, unknown>;
   is_published?: boolean;
+  parent_page_slug?: string;
   created_at?: string;
   updated_at?: string;
   app_modified_at?: string;
@@ -146,4 +147,6 @@ export interface ItemData {
   item_type?: string;
   rarity?: string;
   requires_attunement?: boolean;
+  price?: number;
+  price_display?: string;
 }

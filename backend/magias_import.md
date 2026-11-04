@@ -22,7 +22,7 @@ Você aumenta seus sentidos e reflexos, permitindo que desfira um ataque preciso
 - **Componentes:** V, S
 - **Duração:** Especial
 
-Um raio mental de luz azul parte de sua cabeça em direção à cabeça de uma criatura, dentro do alcance, agredindo a mente dela com energias sombrias. A criatura deve fazer uma salvaguarda de Sabedoria. Se ela falhar, sofrerá 1d6 de dano necrótico e seu deslocamento é reduzido em 3 metros até o começo do seu próximo turno.
+Um raio mental de luz azul parte de sua cabeça em direção à cabeça de uma criatura, dentro do alcance, agredindo a mente dela com energias sombrias. A criatura deve fazer uma salvaguarda de Sabedoria. Se ela falhar, sofrerá 1d6 de dano psíquico e seu deslocamento é reduzido em 3 metros até o começo do seu próximo turno.
 
 O dano da magia aumenta em 1d6 quando você alcança o 5º nível (2d6), 11º nível (3d6) e 17º nível (4d6).
 
@@ -218,7 +218,7 @@ Você dá um comando verbal que momentaneamente aumenta a brutalidade dos ataque
 
 Até o final do seu turno, seus ataques causam 1d8 de dano necrótico adicional. Você recupera uma quantidade de pontos de vida igual à metade do dano causado com esses ataques.
 
-**Em Círculos Superiores.** Ao conjurar esta magia usando um espaço de magia de 4º círculo ou superior, o dano necrótico causado aumenta em 1d6 para cada círculo acima do 3º.
+**Em Círculos Superiores.** Ao conjurar esta magia usando um espaço de magia de 4º círculo ou superior, o dano necrótico causado aumenta em 1d8 para cada círculo acima do 3º.
 
 ## Dança de Lâminas
 
@@ -372,11 +372,11 @@ Você solta um rugido selvagem, aumentando em 6 metros o seu deslocamento e proj
 *2º círculo, evocação*
 
 - **Tempo de Conjuração:** 1 ação
-- **Alcance:** Pessoal (raio de 4,5 metros)
+- **Alcance:** Pessoal (raio de 6 metros (20 pés))
 - **Componentes:** V, S
 - **Duração:** Instantânea
 
-Uma explosão mágica irrompe ao seu redor. Cada criatura num raio de 4,5 metros de você deve realizar uma salvaguarda de Destreza. Se falhar, a criatura sofrerá 3d8 de dano energético. Se obtiver sucesso na resistência, ela sofrerá metade desse dano.
+Uma explosão mágica irrompe ao seu redor. Cada criatura num raio de 6 metros (20 pés) de você deve realizar uma salvaguarda de Destreza. Se falhar, a criatura sofrerá 3d8 de dano energético. Se obtiver sucesso na resistência, ela sofrerá metade desse dano.
 
 **Em Círculos Superiores.** Ao conjurar esta magia usando um espaço de magia de 3º círculo ou superior, o dano aumenta em 1d8 para cada círculo acima do 2º.
 
@@ -390,3 +390,81 @@ Uma explosão mágica irrompe ao seu redor. Cada criatura num raio de 4,5 metros
 - **Duração:** Instantânea
 
 Ao conjurar essa magia, um cadáver à sua vista, dentro do alcance, enche-se de gases de decomposição e explode violentamente, atingindo todos num raio de 6 metros do corpo. Cada criatura na área deve realizar uma salvaguarda de Destreza. Caso falhe, ela sofre uma quantidade de dano necrótico de
+
+
+## Forma Demoníaca
+
+*3º círculo, transmutação*
+
+- **Tempo de Conjuração:** 1 ação bônus
+- **Alcance:** Pessoal
+- **Componentes:** V, S
+- **Duração:** 1 minuto (Concentração)
+
+Você libera seu demônio interior e assume uma forma monstruosa por 1 minuto. Enquanto estiver transformado, você ganha os seguintes benefícios:
+
+- Você manifesta grandes asas demoníacas, ganhando deslocamento de voo de 9 metros (30 pés).
+- Você ganha resistência a dano de fogo e dano necrótico.
+- Uma vez por turno, ao atingir um alvo com um ataque corpo a corpo armado ou desarmado, você pode fazer com que o ataque cause 1d8 de dano de fogo ou necrótico adicional (à sua escolha).
+
+## Forma Sombria
+
+*3º círculo, transmutação*
+
+- **Tempo de Conjuração:** 1 ação bônus
+- **Alcance:** Pessoal
+- **Componentes:** V, S
+- **Duração:** 1 minuto (Concentração)
+
+Você assume uma forma espectral tecida em pura sombra por 1 minuto. Enquanto a transformação durar, você ganha os seguintes benefícios:
+
+- Você ganha resistência a dano necrótico e a dano psíquico.
+- Sempre que você conjurar uma magia ou realizar um ataque que cause dano necrótico ou psíquico, o alvo sofre 1d8 de dano adicional daquele tipo.
+- Você tem vantagem em testes de Destreza (Furtividade) realizados na penumbra ou na escuridão.
+
+## Nova do Caos
+
+*3º círculo, evocação*
+
+- **Tempo de Conjuração:** 1 ação
+- **Alcance:** Pessoal (raio de 6 metros / 20 pés)
+- **Componentes:** V, S
+- **Duração:** Instantânea
+
+Você libera uma onda devastadora de energia vil e caótica em todas as direções ao seu redor. Cada criatura num raio de 6 metros (20 pés) de você deve realizar uma salvaguarda de Constituição.
+
+Se falhar, a criatura sofre 4d8 de dano de fogo ou força (à sua escolha) e fica atordoada (stunned) até o início do seu próximo turno. Se obtiver sucesso na salvaguarda, sofre metade do dano e não fica atordoada.
+
+**Em Círculos Superiores.** Ao conjurar esta magia usando um espaço de magia de 4º círculo ou superior, o dano aumenta em 1d8 para cada círculo acima do 3º.
+
+## Nova Sagrada
+
+*3º círculo, evocação*
+
+- **Tempo de Conjuração:** 1 ação
+- **Alcance:** Pessoal (raio de 6 metros / 20 pés)
+- **Componentes:** V, S
+- **Duração:** Instantânea
+
+Uma explosão de pura luz sagrada irrompe de você, banhando a área. Cada criatura hostil em um raio de 6 metros (20 pés) deve realizar uma salvaguarda de Constituição. Se falhar, a criatura sofre 3d8 de dano radiante, ou metade desse dano em caso de sucesso.
+
+Simultaneamente, criaturas amigáveis à sua escolha dentro da mesma área recuperam uma quantidade de pontos de vida igual a 1d8 + seu modificador de habilidade de conjuração.
+
+**Em Círculos Superiores.** Ao conjurar esta magia usando um espaço de magia de 4º círculo ou superior, tanto o dano radiante quanto a cura aumentam em 1d8 para cada círculo acima do 3º.
+
+## Polimorfia Menor
+
+*2º círculo, transmutação*
+
+- **Tempo de Conjuração:** 1 ação
+- **Alcance:** 18 metros (60 pés)
+- **Componentes:** V, S, M (um casulo de lagarta)
+- **Duração:** Concentração, até 1 hora
+
+Esta magia transforma temporariamente uma criatura que você possa ver dentro do alcance em uma besta inofensiva (como um sapo, ovelha, caranguejo ou galinha). Criaturas involuntárias devem realizar uma salvaguarda de Sabedoria; se passarem, a magia não tem efeito.
+
+As estatísticas de jogo do alvo, incluindo valores de atributos mentais, são substituídas pelas estatísticas da besta escolhida. Ele assume os pontos de vida da nova forma; ao retornar à sua forma original, a criatura volta com a quantidade de pontos de vida que tinha antes da transformação. Se a criatura retornar como resultado de ter chegado a 0 pontos de vida, qualquer dano excedente é transferido para a sua forma normal.
+
+A criatura é limitada nas ações que pode realizar pela natureza da sua nova forma (não pode falar, conjurar magias ou manusear armas).
+
+**Restrição Especial:** Uma criatura afetada por essa magia não pode ser afetada novamente dentro de uma hora.

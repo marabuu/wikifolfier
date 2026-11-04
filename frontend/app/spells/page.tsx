@@ -5,7 +5,7 @@ import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { SpellCollection } from '@/components/catalog/SpellCollection';
 import type { Category, PageListItem, SpellIndexResponse } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 const CLASS_LABELS: Record<string, string> = {
   artificer: 'Artificer', barbarian: 'Barbarian', bard: 'Bard', cleric: 'Cleric',
@@ -30,6 +30,7 @@ export default async function SpellsPage({
 }: {
   searchParams: Record<string, string | string[] | undefined>;
 }) {
+  const query = typeof searchParams.q === 'string' ? searchParams.q : (typeof searchParams.search === 'string' ? searchParams.search : '');
   const level = typeof searchParams.level === 'string' ? searchParams.level : '';
   const school = typeof searchParams.school === 'string' ? searchParams.school : '';
   const klass = typeof searchParams.class === 'string' ? searchParams.class : '';
@@ -52,13 +53,14 @@ export default async function SpellsPage({
   const schools = data?.schools ?? [];
   const classes = data?.classes ?? [];
   const link = (patch: Record<string, string>) => {
-    const merged = { level, school, class: klass, ...patch };
+    const merged = { q: query, level, school, class: klass, ...patch };
     const next = new URLSearchParams();
+    if (merged.q) next.set('q', merged.q);
     if (merged.level) next.set('level', merged.level);
     if (merged.school) next.set('school', merged.school);
     if (merged.class) next.set('class', merged.class);
-    const query = next.toString();
-    return query ? `/spells?${query}` : '/spells';
+    const nextQuery = next.toString();
+    return nextQuery ? `/spells?${nextQuery}` : '/spells';
   };
 
   return (
@@ -68,6 +70,15 @@ export default async function SpellsPage({
       <p className="page-subtitle">{data ? `${data.count} magias catalogadas` : 'Carregando...'}</p>
 
       <form className="spell-filters" action="/spells" method="get">
+        <label>
+          Pesquisa
+          <input
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="Nome da magia..."
+          />
+        </label>
         <label>
           Classe
           <select name="class" defaultValue={klass}>
@@ -104,7 +115,7 @@ export default async function SpellsPage({
       {results.length === 0 ? (
         <p className="spell-empty">Nenhuma magia encontrada com esses filtros.</p>
       ) : (
-        <SpellCollection spells={results} groups={groups} level={level} />
+        <SpellCollection spells={results} groups={groups} level={level} initialSearch={query} />
       )}
     </AppLayout>
   );

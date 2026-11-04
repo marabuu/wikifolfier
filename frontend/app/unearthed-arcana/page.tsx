@@ -5,7 +5,7 @@ import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { PAGE_TYPE_LABELS } from '@/lib/pageTemplates';
 import type { Category, PageListItem } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 /**
  * Unearthed Arcana: every page whose source path lives in the "ua:" namespace.

@@ -5,7 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import type { Category, PageListItem } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function ModulePage({ params }: { params: { slug: string } }) {
   const module = await api.module(params.slug).catch(() => null);

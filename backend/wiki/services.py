@@ -19,7 +19,7 @@ def normalize_known_internal_links(markdown: str) -> str:
     def replace(match):
         label, href, suffix = match.groups()
         if href.startswith("/"):
-            slug = href.strip("/").split("/")[-1]
+            slug = href.strip("/").split("/")[-1].split("#")[0].split("?")[0]
         else:
             spell = re.search(r"(?:^|/)spell:([^/?#]+)", href, re.IGNORECASE)
             if not spell:

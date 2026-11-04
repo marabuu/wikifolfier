@@ -5,7 +5,7 @@ import { WhatsNewSection } from '@/components/catalog/WhatsNewSection';
 import type { Category, PageListItem } from '@/lib/types';
 import type { ContentModule } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 export default async function HomePage() {
   let navigation = { core: [] as Category[], campaign: [] as Category[] };

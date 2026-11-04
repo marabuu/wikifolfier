@@ -93,6 +93,7 @@ if DATABASE_URL:
             "PASSWORD": parsed.password or "",
             "HOST": parsed.hostname or "localhost",
             "PORT": parsed.port or 5432,
+            "CONN_MAX_AGE": 600,
         }
     }
 else:  # development fallback
@@ -158,7 +159,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
-SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", not DEBUG)
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
 SECURE_HSTS_SECONDS = int(env("SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0"))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0

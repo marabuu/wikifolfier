@@ -32,13 +32,15 @@ export function spellInfoBlock(data: SpellData) {
 }
 
 export function magicItemInfoBlock(data: ItemData) {
-  return {
-    fields: [
-      { label: 'Type', value: data.item_type ?? '' },
-      { label: 'Rarity', value: data.rarity ?? '' },
-      { label: 'Requires Attunement', value: data.requires_attunement ? 'Yes' : 'No' },
-    ],
-  };
+  const fields = [
+    { label: 'Type', value: data.item_type ?? '' },
+    { label: 'Rarity', value: data.rarity ?? '' },
+    { label: 'Requires Attunement', value: data.requires_attunement ? 'Yes' : 'No' },
+  ];
+  if (data.price_display) {
+    fields.push({ label: 'Preço Sugerido', value: data.price_display });
+  }
+  return { fields };
 }
 
 export const PAGE_TYPE_LABELS: Record<string, string> = {

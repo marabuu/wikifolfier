@@ -4,7 +4,7 @@ import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import Link from 'next/link';
 import type { Category, PageListItem } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 const PAGE_TYPE_LABELS: Record<string, string> = {
   class: 'Classe',

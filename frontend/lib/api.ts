@@ -9,18 +9,32 @@ import type {
   ContentModule,
 } from './types';
 
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000';
+const isServer = typeof window === 'undefined';
+export const API_URL = isServer
+  ? (process.env.INTERNAL_API_URL?.replace(/\/$/, '') || process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000')
+  : (process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000');
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_URL}/api${path}`, {
+  const isServer = typeof window === 'undefined';
+  const base = isServer
+    ? (process.env.INTERNAL_API_URL?.replace(/\/$/, '') || process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000')
+    : (process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:8000');
+  const url = `${base}/api${path}`;
+
+  const fetchOptions: RequestInit = {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
-    cache: 'no-store',
-  });
+  };
+
+  // Cache GET requests on the server for 60 seconds (ISR) unless explicit cache/next config is provided
+  if (isServer && (!init?.method || init.method.toUpperCase() === 'GET') && !init?.cache && !('next' in (init ?? {}))) {
+    (fetchOptions as any).next = { revalidate: 60 };
+  }
+
+  const response = await fetch(url, fetchOptions);
 
   if (!response.ok) {
     throw new Error(`API ${response.status}: ${path}`);

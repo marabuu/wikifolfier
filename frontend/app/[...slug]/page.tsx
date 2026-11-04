@@ -7,10 +7,11 @@ import { PageView } from '@/components/pages/PageView';
 import { ClassDirectory } from '@/components/catalog/ClassDirectory';
 import { SubclassDirectory } from '@/components/catalog/SubclassDirectory';
 import { MagicItemCollection } from '@/components/catalog/MagicItemCollection';
+import { EquipmentCollection } from '@/components/catalog/EquipmentCollection';
 import { CatalogCollection } from '@/components/catalog/CatalogCollection';
 import type { Category, PageLink, PageListItem } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 /**
  * Category index page: /classes, /spells, /locations, ...
@@ -35,12 +36,12 @@ export default async function ContentPage({ params }: { params: { slug: string[]
 async function SingleSegmentRoute({ slug }: { slug: string }) {
   const categories = await api.categories().catch(() => []);
   const known = findCategory(categories, slug);
-  if (known) return <CategoryIndexRoute slug={slug} />;
+  if (known) return <CategoryIndexRoute slug={slug} initialCategories={categories} />;
 
   const page = await api.page(slug).catch(() => null);
   if (page) return <PageDetailRoute categorySlug={page.category?.slug ?? slug} pageSlug={slug} />;
 
-  return <CategoryIndexRoute slug={slug} />;
+  return <CategoryIndexRoute slug={slug} initialCategories={categories} />;
 }
 
 async function PageDetailRoute({
@@ -64,9 +65,14 @@ async function PageDetailRoute({
     notFound();
   }
 
-  navigation = await api.navigation().catch(() => navigation);
-  backlinks = await api.backlinks(pageSlug).catch(() => backlinks);
-  children = await api.children(pageSlug).catch(() => children);
+  const [navRes, backlinksRes, childrenRes] = await Promise.all([
+    api.navigation().catch(() => navigation),
+    api.backlinks(pageSlug).catch(() => backlinks),
+    api.children(pageSlug).catch(() => children),
+  ]);
+  navigation = navRes;
+  backlinks = backlinksRes;
+  children = childrenRes;
 
   // A page may be reached under the wrong category segment: serve the
   // canonical URL instead of failing.
@@ -81,14 +87,17 @@ async function PageDetailRoute({
   );
 }
 
-async function CategoryIndexRoute({ slug }: { slug: string }) {
-
-  let navigation = { core: [] as Category[], campaign: [] as Category[] };
-  let categories: Category[] = [];
-  let pages: PageListItem[] = [];
-
-  navigation = await api.navigation().catch(() => navigation);
-  categories = await api.categories().catch(() => categories);
+async function CategoryIndexRoute({
+  slug,
+  initialCategories,
+}: {
+  slug: string;
+  initialCategories?: Category[];
+}) {
+  const [navigation, categories] = await Promise.all([
+    api.navigation().catch(() => ({ core: [] as Category[], campaign: [] as Category[] })),
+    initialCategories ? Promise.resolve(initialCategories) : api.categories().catch(() => [] as Category[]),
+  ]);
 
   const category =
     findCategory(categories, slug) ??
@@ -100,25 +109,24 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
   const query = category?.parent
     ? `subcategory__slug=${slug}`
     : `category__slug=${slug}`;
-  pages = await api.pages(query)
-    .then((response) => response.results)
-    .catch(() => pages);
-
-  if (!category && pages.length === 0) notFound();
 
   if (slug === 'classes') {
-    // UA content belongs to its own catalogue.  "Revised" class entries are
-    // alternate versions, not separate player-class choices.  Do not use the
-    // number of linked children here: older imports can have valid subclasses
-    // without the parent_page relationship populated.
+    const [pagesResponse, subclassesResponse] = await Promise.all([
+      api.pages(query).catch(() => ({ results: [] as PageListItem[] })),
+      api.pages('page_type=subclass').catch(() => ({ results: [] as PageListItem[] })),
+    ]);
+
+    const pages = pagesResponse.results;
     const classes = pages.filter((page) => !isUnearthedArcana(page) && !isRevisedClass(page));
-    const childResults = await Promise.all(
-      classes.map(async (page) => [
-        page.slug,
-        await api.children(page.slug).catch(() => [] as PageListItem[]),
-      ] as const),
-    );
-    const subclasses = Object.fromEntries(childResults);
+    const allSubclasses = subclassesResponse.results;
+    const subclasses: Record<string, PageListItem[]> = {};
+    for (const sub of allSubclasses) {
+      const parent = sub.parent_page_slug;
+      if (parent) {
+        if (!subclasses[parent]) subclasses[parent] = [];
+        subclasses[parent].push(sub);
+      }
+    }
     return (
       <AppLayout navigation={navigation} currentSlug={slug}>
         <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? slug }]} />
@@ -127,11 +135,27 @@ async function CategoryIndexRoute({ slug }: { slug: string }) {
     );
   }
 
+  const pagesResponse = await api.pages(query).catch(() => ({ results: [] as PageListItem[] }));
+  const pages = pagesResponse.results;
+
+  if (!category && pages.length === 0) notFound();
+
   if (slug === 'subclasses') {
     return (
       <AppLayout navigation={navigation} currentSlug={slug}>
         <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? slug }]} />
         <SubclassDirectory pages={pages} />
+      </AppLayout>
+    );
+  }
+
+  if (slug === 'equipment') {
+    return (
+      <AppLayout navigation={navigation} currentSlug={slug}>
+        <Breadcrumbs crumbs={[{ name: 'D&D 2024', href: '/' }, { name: category?.name ?? 'Equipment' }]} />
+        <h1 className="page-title">{category?.name ?? 'Equipment'}</h1>
+        {category?.description && <p className="page-subtitle">{category.description}</p>}
+        <EquipmentCollection pages={pages} />
       </AppLayout>
     );
   }

@@ -483,9 +483,22 @@ def split_named_sections(markdown: str, wanted: list[str]) -> tuple[str, list[tu
 
     for index, match in enumerate(headings):
         title = match.group(2).strip()
-        # Exact match (case-insensitive): a prefix match would also swallow
-        # "Livro de feitiços rúnicos modernos" into "Livro de feitiços rúnicos".
-        if title.lower() not in {name.lower() for name in wanted}:
+        # Exact match or prefix match before a colon / hyphen (e.g. "Escola do Lobo: Especialização...")
+        matched_wanted = None
+        for name in wanted:
+            if title.lower() == name.lower():
+                matched_wanted = name
+                break
+            prefix = title.split(":", 1)[0].strip()
+            if prefix.lower() == name.lower():
+                matched_wanted = name
+                break
+            prefix_dash = title.split(" - ", 1)[0].strip()
+            if prefix_dash.lower() == name.lower():
+                matched_wanted = name
+                break
+
+        if not matched_wanted:
             continue
 
         level = len(match.group(1))
@@ -495,7 +508,13 @@ def split_named_sections(markdown: str, wanted: list[str]) -> tuple[str, list[tu
                 end = follow.start()
                 break
 
-        extracted.append((title, markdown[match.end(): end].strip()))
+        body = markdown[match.end(): end].strip()
+        if ":" in title and not title.lower().startswith("livro"):
+            desc = title.split(":", 1)[1].strip()
+            if desc:
+                body = f"*{desc}*\n\n{body}"
+
+        extracted.append((matched_wanted, body))
         drop_spans.append((match.start(), end))
 
     if not drop_spans:
@@ -574,7 +593,24 @@ class Command(BaseCommand):
                             parent_title = parent_slug
                             break
 
-            for item in document.items:
+            doc_items = list(document.items)
+            if key == "novos fighting styles":
+                expanded_items = []
+                for it in doc_items:
+                    if "duelista (revisado)" in it.markdown.lower():
+                        parts = re.split(r"\*\*Duelista\s*\((?:revisado|revisão)\):\*\*", it.markdown, flags=re.IGNORECASE)
+                        it.markdown = parts[0].strip()
+                        expanded_items.append(it)
+                        from importer.docx_reader import DocxItem
+                        expanded_items.append(DocxItem(
+                            title="Duelist (Revisado)",
+                            markdown=parts[1].strip() if len(parts) > 1 else "",
+                        ))
+                    else:
+                        expanded_items.append(it)
+                doc_items = expanded_items
+
+            for item in doc_items:
                 title = (PREFIX_RE.sub("", item.title).strip()
                          or PREFIX_RE.sub("", stem).strip())
                 if page_type == "feat":
@@ -624,6 +660,12 @@ class Command(BaseCommand):
                         f"- [{section_title}](/subclasses/{slugify(f'{title}-{section_title}')})"
                         for section_title, _body in sub_sections
                     )
+                    if title.strip().lower() == "witcher":
+                        markdown = re.sub(
+                            r"(As op[ç\uFFFD][õ\uFFFD]es s[ã\uFFFD]o:\s*)",
+                            f"\\1\n{link_lines}\n\n",
+                            markdown,
+                        )
                     if title.strip().lower() != "runescaper":
                         markdown = (
                             markdown.rstrip()
@@ -645,6 +687,15 @@ class Command(BaseCommand):
                 if page_type == "spell":
                     struct_data = {**parse_spell_data(markdown, slug=slugify(title)), **struct_data}
 
+                subcat_slug = None
+                tags = None
+                if key == "novos fighting styles":
+                    subcat_slug = "feat-fighting-style"
+                    tags = ["fightingstylefeat"]
+                elif key == "novos feats":
+                    subcat_slug = "feat-general"
+                    tags = ["generalfeat"]
+
                 was_created = self._upsert(
                     title=title,
                     page_type=page_type,
@@ -654,6 +705,8 @@ class Command(BaseCommand):
                     parent_title=parent_title,
                     collisions=collisions,
                     subtitle=subtitle,
+                    subcategory_slug=subcat_slug,
+                    tag_names=tags,
                 )
                 if was_created is None:
                     continue
@@ -746,7 +799,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"  {item}")
 
     def _upsert(self, title, page_type, category_slug, item, categories,
-                parent_title, collisions, slug_hint=None, as_child_of=None, subtitle=""):
+                parent_title, collisions, slug_hint=None, as_child_of=None, subtitle="",
+                subcategory_slug=None, tag_names=None):
         slug = (slug_hint or slugify(title))[:180]
         if not slug:
             return None
@@ -768,6 +822,8 @@ class Command(BaseCommand):
         page.source = Source.FOLFIER
         page.edition = "D&D 2024"
         page.category = categories.get(category_slug)
+        if subcategory_slug:
+            page.subcategory = categories.get(subcategory_slug)
         page.source_content = item.markdown
         page.structured_data = item.structured_data
         page.visibility = "public"
@@ -782,5 +838,5 @@ class Command(BaseCommand):
                 title__iexact=as_child_of
             ).first() or Page.objects.filter(slug=slugify(as_child_of)).first()
 
-        save_page_with_derived_data(page)
+        save_page_with_derived_data(page, tag_names=tag_names)
         return was_created

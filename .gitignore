@@ -23,6 +23,9 @@ import_report.json
 .env
 .env.local
 *.pem
+*.key
+*.pub
+*.tar.gz
 
 # OS / editors
 .DS_Store

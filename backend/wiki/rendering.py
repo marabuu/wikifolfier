@@ -65,13 +65,16 @@ def render(markdown_text: str, base_path: str = "") -> RenderResult:
     for label, href in LINK_RE.findall(text):
         if href.startswith(WIKIDOT_INTERNAL_PREFIXES) or not re.match(r"^[a-z]+://", href):
             if href.startswith("/"):
-                slug = href.strip("/").split("/")[-1]
+                slug = href.strip("/").split("/")[-1].split("#")[0].split("?")[0]
                 internal.append((slug, label))
 
     return RenderResult(html=cleaned, internal_links=internal)
 
 
 def strip_html(html: str, limit: int = 220) -> str:
-    text = bleach.clean(html or "", tags=[], strip=True)
+    if not html:
+        return ""
+    chunk = html[:limit * 5]
+    text = re.sub(r"<[^>]+>", " ", chunk)
     text = re.sub(r"\s+", " ", text).strip()
     return text[:limit]

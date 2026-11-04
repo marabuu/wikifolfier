@@ -3,8 +3,11 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 services:
   frontend:
+    build:
+      dockerfile: Dockerfile.prebuilt
     environment:
       NODE_ENV: production
+      INTERNAL_API_URL: http://backend:8000
       NEXT_PUBLIC_API_URL: https://${DOMAIN}
 
   backend:
@@ -16,14 +19,8 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       CSRF_COOKIE_SECURE: "True"
       SESSION_COOKIE_SECURE: "True"
-    command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py collectstatic --noinput &&
-             gunicorn compendium.wsgi:application
-               --bind 0.0.0.0:8000
-               --workers 4
-               --timeout 60
-               --access-logfile -"
+      SECURE_SSL_REDIRECT: "False"
+    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn compendium.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60 --access-logfile -"
     restart: always
 
   postgres:

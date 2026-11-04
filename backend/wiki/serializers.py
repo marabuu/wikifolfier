@@ -25,6 +25,15 @@ class CategorySerializer(serializers.ModelSerializer):
         return CategorySerializer(obj.children.all(), many=True, context=self.context).data
 
 
+class CategorySimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = (
+            "id", "name", "slug", "parent", "description",
+            "position", "in_sidebar", "sidebar_group",
+        )
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
@@ -42,22 +51,27 @@ class ContentModuleSerializer(serializers.ModelSerializer):
 
 
 class PageListSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
-    subcategory = CategorySerializer(read_only=True)
+    category = CategorySimpleSerializer(read_only=True)
+    subcategory = CategorySimpleSerializer(read_only=True)
     source_label = serializers.CharField(read_only=True)
     module = ContentModuleSerializer(read_only=True)
     excerpt = serializers.SerializerMethodField()
+    parent_page_slug = serializers.CharField(source="parent_page.slug", read_only=True, default=None)
 
     class Meta:
         model = Page
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "source_label",
             "edition", "module", "category", "subcategory", "url_path", "visibility", "excerpt",
-            "structured_data", "is_published", "app_modified_at",
+            "structured_data", "is_published", "app_modified_at", "parent_page_slug",
         )
 
     def get_excerpt(self, obj: Page) -> str:
-        return strip_html(obj.rendered_content)
+        if not self.context.get("include_excerpt"):
+            return ""
+        if not getattr(obj, "rendered_content", None):
+            return ""
+        return strip_html(obj.rendered_content)[:240]
 
 
 class PageDetailSerializer(PageListSerializer):

@@ -5,7 +5,7 @@ import { Breadcrumbs } from '@/components/navigation/Breadcrumbs';
 import { CatalogCollection } from '@/components/catalog/CatalogCollection';
 import type { Category, PageListItem } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 60;
 
 const FEAT_GROUPS = [
   { slug: 'feat-origin', label: 'Origin Feats' },
