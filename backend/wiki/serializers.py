@@ -63,7 +63,7 @@ class PageListSerializer(serializers.ModelSerializer):
         fields = (
             "id", "slug", "title", "subtitle", "page_type", "source", "source_label",
             "edition", "module", "category", "subcategory", "url_path", "visibility", "excerpt",
-            "structured_data", "is_published", "app_modified_at", "parent_page_slug",
+            "structured_data", "is_published", "created_at", "app_modified_at", "parent_page_slug",
         )
 
     def get_excerpt(self, obj: Page) -> str:

@@ -52,6 +52,38 @@ function CategoryTree({ items, currentSlug }: { items: Category[]; currentSlug?:
 export function Sidebar({ navigation, currentSlug }: Props) {
   return (
     <nav className="sidebar" aria-label="Navegação do compêndio">
+      <div style={{ marginBottom: 18 }}>
+        <Link
+          href="/whats-new"
+          className={currentSlug === 'whats-new' ? 'current' : undefined}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            borderRadius: 4,
+            fontWeight: 600,
+            border: '1px solid var(--line)',
+            background: 'rgba(216, 173, 88, 0.08)',
+            color: 'var(--gold-bright)',
+            fontSize: 13,
+          }}
+        >
+          <span>✨ O que há de novo</span>
+          <span
+            style={{
+              fontSize: 10,
+              padding: '2px 6px',
+              borderRadius: 8,
+              background: 'var(--gold)',
+              color: '#120f11',
+              fontWeight: 700,
+            }}
+          >
+            30d
+          </span>
+        </Link>
+      </div>
       {navigation.core.length > 0 && (
         <div className="sidebar__group">
           <p className="sidebar__title">D&amp;D 2024</p>

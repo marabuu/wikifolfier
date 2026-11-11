@@ -7,6 +7,7 @@ import type {
   SearchResponse,
   SpellIndexResponse,
   ContentModule,
+  WhatsNewResponse,
 } from './types';
 
 const isServer = typeof window === 'undefined';
@@ -63,6 +64,14 @@ export const api = {
     request<{ results: PageListItem[] }>(`/pages/?${query}&page_size=2000`),
   modules: () => request<ContentModule[]>('/modules/'),
   module: (slug: string) => request<ContentModule>(`/modules/${slug}/`),
+  whatsNew: (params?: { days?: number; limit?: number; type?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.days) query.set('days', String(params.days));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.type) query.set('type', params.type);
+    const qs = query.toString();
+    return request<WhatsNewResponse>(`/whats-new${qs ? `?${qs}` : ''}`);
+  },
 
   pageCreate: (data: Record<string, unknown>, token: string) =>
     request<PageDetail>('/pages/', {

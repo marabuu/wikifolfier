@@ -150,3 +150,23 @@ export interface ItemData {
   price?: number;
   price_display?: string;
 }
+
+export interface WhatsNewItem {
+  id: number;
+  title: string;
+  slug: string;
+  url: string;
+  type: string;
+  type_label: string;
+  category_slug?: string | null;
+  category_name?: string | null;
+  created_at: string;
+  edition?: string;
+  source?: string;
+}
+
+export interface WhatsNewResponse {
+  days: number;
+  total: number;
+  results: WhatsNewItem[];
+}

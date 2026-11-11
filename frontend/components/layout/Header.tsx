@@ -10,6 +10,7 @@ export function Header() {
           <span>Compêndio da Campanha</span>
         </div>
         <div className="site-header__tools">
+          <Link href="/whats-new">✨ Novidades</Link>
           <Link href="/search">Busca</Link>
         </div>
       </div>

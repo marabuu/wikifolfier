@@ -1,4 +1,4 @@
-from django.urls import include, path
+from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 
 from . import views
@@ -14,6 +14,7 @@ urlpatterns = [
     path("search", views.SearchView.as_view(), name="search"),
     path("spells-index", views.SpellIndexView.as_view(), name="spells-index"),
     path("navigation", views.NavigationView.as_view(), name="navigation"),
+    re_path(r"^whats-new/?$", views.WhatsNewView.as_view(), name="whats-new"),
     path("health", views.HealthView.as_view(), name="health"),
     path("", include(router.urls)),
 ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import timedelta
 
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
@@ -136,6 +137,7 @@ class PageViewSet(viewsets.ModelViewSet):
         "category": ["exact"],
         "is_published": ["exact"],
         "parent_page__slug": ["exact"],
+        "created_at": ["exact", "gte", "lte"],
         # The home page and changelog must only show pages changed through
         # the application, which are marked with this timestamp.
         "app_modified_at": ["exact", "isnull"],
@@ -145,7 +147,7 @@ class PageViewSet(viewsets.ModelViewSet):
         "tags__slug": ["exact"],
     }
     search_fields = ["title", "subtitle"]
-    ordering_fields = ["title", "updated_at", "app_modified_at", "page_type"]
+    ordering_fields = ["title", "created_at", "updated_at", "app_modified_at", "page_type"]
 
     _list_cache = {}
     _list_cache_time = {}
@@ -439,6 +441,92 @@ class NavigationView(APIView):
             )
         self._cache = payload
         self._cache_time = now
+        return Response(payload)
+
+
+class WhatsNewView(APIView):
+    """Returns recently launched content within a rolling window (default 30 days)."""
+
+    permission_classes = [AllowAny]
+    CACHE_TTL = 30.0
+    _cache: dict[str, dict] = {}
+    _cache_time: dict[str, float] = {}
+
+    def get(self, request):
+        now = time.monotonic()
+        cache_key = request.get_full_path()
+        if cache_key in self._cache and now - self._cache_time.get(cache_key, 0) < self.CACHE_TTL:
+            return Response(self._cache[cache_key])
+
+        try:
+            days = int(request.query_params.get("days", 30))
+        except (ValueError, TypeError):
+            days = 30
+
+        try:
+            limit = int(request.query_params.get("limit", 60))
+        except (ValueError, TypeError):
+            limit = 60
+
+        cutoff = timezone.now() - timedelta(days=days)
+        qs = (
+            visible_pages(request)
+            .filter(created_at__gte=cutoff)
+            .select_related("category", "parent_page")
+            .order_by("-created_at")
+        )
+
+        page_type = request.query_params.get("type")
+        if page_type:
+            qs = qs.filter(page_type=page_type)
+
+        total = qs.count()
+        pages = list(qs[:limit])
+
+        type_labels = {
+            "class": "Classe",
+            "subclass": "Subclasse",
+            "species": "Espécie",
+            "background": "Antecedente",
+            "feat": "Talento",
+            "spell": "Magia",
+            "magic_item": "Item Mágico",
+            "equipment": "Equipamento",
+            "weapon": "Arma",
+            "armor": "Armadura",
+            "rule": "Regra",
+            "other": "Conteúdo",
+        }
+
+        results = []
+        for p in pages:
+            label = type_labels.get(p.page_type, p.page_type.title())
+            if "invocation" in p.slug or "invocacao" in p.slug:
+                label = "Invocação Mística"
+            elif p.category and p.category.name == "Feats":
+                label = "Talento"
+
+            results.append({
+                "id": p.id,
+                "title": p.title,
+                "slug": p.slug,
+                "url": p.url_path,
+                "type": p.page_type,
+                "type_label": label,
+                "category_slug": p.category.slug if p.category else None,
+                "category_name": p.category.name if p.category else None,
+                "created_at": p.created_at.isoformat(),
+                "edition": p.edition,
+                "source": p.source,
+            })
+
+        payload = {
+            "days": days,
+            "total": total,
+            "results": results,
+        }
+        self._cache[cache_key] = payload
+        self._cache_time[cache_key] = now
         return Response(payload)
 
 
