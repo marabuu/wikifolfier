@@ -36,4 +36,7 @@ Thumbs.db
 
 # Local artefacts
 backups/
+*.dump
+*.sql
+*.sqlite3
 .agents/
