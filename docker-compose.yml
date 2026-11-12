@@ -47,6 +47,7 @@ services:
       MEDIA_ROOT: /app/media
       WIKIDOT_BASE_URL: ${WIKIDOT_BASE_URL:-https://dnd5e.wikidot.com}
       TZ: ${TZ:-UTC}
+      OWNER_USERNAME: ${OWNER_USERNAME:-admin}
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
