@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -139,6 +140,14 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": env("API_ANON_THROTTLE_RATE", "300/min"),
+        "login": env("API_LOGIN_THROTTLE_RATE", "5/min"),
+    },
+    "NUM_PROXIES": int(env("NUM_PROXIES", "1")),
     # Big categories (Magic Items, Spells) hold hundreds of pages, so the
     # client can ask for a bigger page instead of walking 9 pages of 50.
     "DEFAULT_PAGINATION_CLASS": "wiki.pagination.CompendiumPagination",
@@ -150,8 +159,10 @@ REST_FRAMEWORK = {
     ],
 }
 
+ADMIN_URL_PATH = env("DJANGO_ADMIN_PATH", "casa-aristela/").strip("/") + "/"
+
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": __import__("datetime").timedelta(hours=12),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=4),
 }
 
 CORS_ALLOWED_ORIGINS = [

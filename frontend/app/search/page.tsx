@@ -18,12 +18,13 @@ const SOURCE_LABELS: Record<string, string> = {
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const term = typeof searchParams.q === 'string' ? searchParams.q : '';
-  const type = typeof searchParams.type === 'string' ? searchParams.type : '';
-  const source = typeof searchParams.source === 'string' ? searchParams.source : '';
-  const tag = typeof searchParams.tag === 'string' ? searchParams.tag : '';
+  const resolved = await searchParams;
+  const term = typeof resolved.q === 'string' ? resolved.q : '';
+  const type = typeof resolved.type === 'string' ? resolved.type : '';
+  const source = typeof resolved.source === 'string' ? resolved.source : '';
+  const tag = typeof resolved.tag === 'string' ? resolved.tag : '';
 
   const params = new URLSearchParams();
   if (term) params.set('q', term);

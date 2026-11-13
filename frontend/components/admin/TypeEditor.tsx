@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api, API_URL } from '@/lib/api';
+import { api } from '@/lib/api';
+import {
+  clearOwnerToken,
+  getOwnerToken,
+  loginOwner,
+  OwnerAuthError,
+  ownerRequest,
+} from '@/lib/ownerAuth';
 import type { PageDetail, PageListItem, PageType, Source } from '@/lib/types';
 
 const SOURCE_LABELS: Record<string, string> = { official: 'Official', wikidot: 'Wikidot', homebrew: 'Homebrew', campaign: 'Campaign', custom: 'Custom' };
@@ -35,15 +42,20 @@ export function TypeEditor({ pageType, typeLabel, slug, initialContent, onSave }
   const [classes, setClasses] = useState<PageListItem[]>([]);
 
   useEffect(() => {
-    setToken(window.localStorage.getItem('owner_editor_token') ?? '');
+    setToken(getOwnerToken());
     if (slug) loadPage();
     loadClasses();
   }, [slug]);
 
-  const request = async (path: string, init: RequestInit = {}) => {
-    const response = await fetch(`${API_URL}/api${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) } });
-    if (!response.ok) { const body = await response.text().catch(() => ''); throw new Error(body || `API ${response.status}: ${path}`); }
-    return response.json();
+  const request = async <T,>(path: string, init: RequestInit = {}) => {
+    try {
+      return await ownerRequest<T>(path, token, init);
+    } catch (error) {
+      if (error instanceof OwnerAuthError) {
+        setToken('');
+      }
+      throw error;
+    }
   };
 
   const loadPage = async () => {
@@ -55,18 +67,21 @@ export function TypeEditor({ pageType, typeLabel, slug, initialContent, onSave }
 
   const loadClasses = async () => {
     if (pageType !== 'subclass') return;
-    try { const data = await request(`/pages/?page_type=class&page_size=2000`); setClasses((data as { results: PageListItem[] }).results); } catch { /* ignore */ }
+    try { const data = await api.pages('page_type=class'); setClasses(data.results); } catch { /* ignore */ }
   };
 
   const login = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/auth/owner-token/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
-      if (!response.ok) throw new Error('Usuário ou senha inválidos.');
-      const data = await response.json();
-      window.localStorage.setItem('owner_editor_token', data.access);
-      setToken(data.access); setMessage({ text: 'Autenticado como proprietário.', kind: 'ok' }); setMessageKey((k) => k + 1);
+      const access = await loginOwner(username, password);
+      setToken(access); setPassword(''); setMessage({ text: 'Autenticado como proprietário.', kind: 'ok' }); setMessageKey((k) => k + 1);
     } catch (error) { setMessage({ text: (error as Error).message, kind: 'err' }); setMessageKey((k) => k + 1); }
+  };
+
+  const logout = () => {
+    clearOwnerToken();
+    setToken('');
+    setMessage({ text: '', kind: '' as 'ok' | 'err' });
   };
 
   const save = async () => {
@@ -75,8 +90,8 @@ export function TypeEditor({ pageType, typeLabel, slug, initialContent, onSave }
     try {
       const payload: Record<string, unknown> = { title: title.trim(), subtitle: subtitle.trim() || undefined, page_type: pageType, source, edition: 'D&D 2024', source_content: content.trim() || `# ${title.trim()}\n\nConteúdo não informado.`, visibility, is_published: isPublished, structured_data: structuredData };
       if (pageType === 'subclass' && structuredData.parent_page) { payload.parent_page = structuredData.parent_page; }
-      if (slug) { await api.pageUpdate(slug, payload, token); setMessage({ text: 'Salvo com sucesso.', kind: 'ok' }); }
-      else { await api.pageCreate(payload, token); setMessage({ text: 'Criado com sucesso.', kind: 'ok' }); onSave?.(); }
+      if (slug) { await request(`/pages/${slug}/`, { method: 'PATCH', body: JSON.stringify(payload) }); setMessage({ text: 'Salvo com sucesso.', kind: 'ok' }); }
+      else { await request('/pages/', { method: 'POST', body: JSON.stringify(payload) }); setMessage({ text: 'Criado com sucesso.', kind: 'ok' }); onSave?.(); }
       setMessageKey((k) => k + 1);
     } catch (error) { setMessage({ text: (error as Error).message, kind: 'err' }); setMessageKey((k) => k + 1); } finally { setLoading(false); }
   };
@@ -99,7 +114,10 @@ export function TypeEditor({ pageType, typeLabel, slug, initialContent, onSave }
     <section className="page-editor" style={{ maxWidth: 1000, margin: '22px auto 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 className="index-heading">{slug ? 'Editar' : 'Novo'} {typeLabel}</h2>
-        <Link href="/admin" className="button">Voltar ao Admin</Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/admin" className="button">Voltar ao Admin</Link>
+          <button type="button" className="button" onClick={logout}>Sair</button>
+        </div>
       </div>
 
       {message.text && <p className={`editor-message`} key={messageKey} style={{ color: message.kind === 'ok' ? 'var(--gold-bright)' : '#f0a18d' }}>{message.text}</p>}

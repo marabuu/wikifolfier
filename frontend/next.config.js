@@ -2,7 +2,8 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
-  eslint: { ignoreDuringBuilds: true },
+  poweredByHeader: false,
+  images: { unoptimized: true },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
   },

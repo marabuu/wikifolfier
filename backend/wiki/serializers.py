@@ -100,6 +100,9 @@ class PageWriteSerializer(serializers.ModelSerializer):
             "module", "category", "parent_page", "source_content", "structured_data",
             "visibility", "is_published", "position",
         )
+        extra_kwargs = {
+            "slug": {"required": False, "allow_blank": True},
+        }
 
     def create(self, validated_data):
         page = Page(**validated_data)

@@ -28,12 +28,13 @@ type SpellFields = {
 export default async function SpellsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const query = typeof searchParams.q === 'string' ? searchParams.q : (typeof searchParams.search === 'string' ? searchParams.search : '');
-  const level = typeof searchParams.level === 'string' ? searchParams.level : '';
-  const school = typeof searchParams.school === 'string' ? searchParams.school : '';
-  const klass = typeof searchParams.class === 'string' ? searchParams.class : '';
+  const resolved = await searchParams;
+  const query = typeof resolved.q === 'string' ? resolved.q : (typeof resolved.search === 'string' ? resolved.search : '');
+  const level = typeof resolved.level === 'string' ? resolved.level : '';
+  const school = typeof resolved.school === 'string' ? resolved.school : '';
+  const klass = typeof resolved.class === 'string' ? resolved.class : '';
   const params = new URLSearchParams();
   if (level) params.set('level', level);
   if (school) params.set('school', school);

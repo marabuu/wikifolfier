@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { api, API_URL } from '@/lib/api';
+import {
+  clearOwnerToken,
+  getOwnerToken,
+  OwnerAuthError,
+  ownerRequest,
+} from '@/lib/ownerAuth';
 import type { PageListItem, PageType } from '@/lib/types';
 
 interface AdminListProps {
@@ -18,17 +23,29 @@ export function AdminList({ pageType, typeLabel, typeSlug }: AdminListProps) {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    setToken(window.localStorage.getItem('owner_editor_token') ?? '');
+    setToken(getOwnerToken());
   }, []);
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
-    api.pages(`page_type=${pageType}&page_size=2000`)
+    ownerRequest<{ results?: PageListItem[] }>(`/pages/?page_type=${pageType}&page_size=2000`, token)
       .then((data) => setPages(data.results ?? []))
-      .catch((e) => setMessage(e.message))
+      .catch((e) => {
+        if (e instanceof OwnerAuthError) {
+          setToken('');
+        }
+        setMessage((e as Error).message);
+      })
       .finally(() => setLoading(false));
   }, [token, pageType]);
+
+  const logout = () => {
+    clearOwnerToken();
+    setToken('');
+    setPages([]);
+    setMessage('');
+  };
 
   if (!token) {
     return (
@@ -36,6 +53,7 @@ export function AdminList({ pageType, typeLabel, typeSlug }: AdminListProps) {
         <h2 className="index-heading">Gerenciar {typeLabel}</h2>
         <p className="editor-note">Somente a conta configurada no servidor pode criar ou excluir {typeLabel.toLowerCase()}.</p>
         <p className="editor-note">Faça login na página de edição de um item para obter o token.</p>
+        {message && <p className="editor-message" style={{ color: '#f0a18d' }}>{message}</p>}
       </section>
     );
   }
@@ -44,7 +62,10 @@ export function AdminList({ pageType, typeLabel, typeSlug }: AdminListProps) {
     <section className="admin-type-list">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 className="index-heading">{typeLabel}</h2>
-        <Link href={`/admin/${typeSlug}/new`} className="button button--solid">Novo {typeLabel}</Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href={`/admin/${typeSlug}/new`} className="button button--solid">Novo {typeLabel}</Link>
+          <button type="button" className="button" onClick={logout}>Sair</button>
+        </div>
       </div>
 
       {message && <p className="editor-message" style={{ color: '#f0a18d' }}>{message}</p>}

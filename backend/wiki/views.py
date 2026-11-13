@@ -8,14 +8,14 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import BrokenLink, Category, ContentModule, Page, PageRevision, Source, Visibility
-from .permissions import user_is_owner
+from .permissions import IsOwner
 from .rendering import render
 from .search import search_pages
 from .services import save_page_with_derived_data
@@ -221,16 +221,14 @@ class PageViewSet(viewsets.ModelViewSet):
             PageListSerializer(self.get_object().child_pages.all(), many=True).data
         )
 
-    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["post"], permission_classes=[IsOwner])
     def preview(self, request):
         result = render(request.data.get("markdown", ""))
         return Response({"html": result.html, "links": result.internal_links})
 
-    @action(detail=True, methods=["patch"], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=["patch"], permission_classes=[IsOwner])
     def content(self, request, slug=None):
         """Save a markdown-only revision. Tags and all page metadata stay untouched."""
-        if not user_is_owner(request.user):
-            return Response({"detail": "Apenas o proprietário pode editar."}, status=403)
         page = self.get_object()
         serializer = PageContentSerializer(page, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -247,16 +245,12 @@ class PageViewSet(viewsets.ModelViewSet):
         PageViewSet._list_cache_time.clear()
         return Response(PageDetailSerializer(page, context={"request": request}).data)
 
-    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=["get"], permission_classes=[IsOwner])
     def revisions(self, request, slug=None):
-        if not user_is_owner(request.user):
-            return Response({"detail": "Apenas o proprietário pode consultar revisões."}, status=403)
         return Response(PageRevisionSerializer(self.get_object().revisions.all(), many=True).data)
 
-    @action(detail=True, methods=["post"], url_path=r"revisions/(?P<revision_id>[^/.]+)/rollback", permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=["post"], url_path=r"revisions/(?P<revision_id>[^/.]+)/rollback", permission_classes=[IsOwner])
     def rollback(self, request, slug=None, revision_id=None):
-        if not user_is_owner(request.user):
-            return Response({"detail": "Apenas o proprietário pode restaurar revisões."}, status=403)
         page = self.get_object()
         revision = get_object_or_404(PageRevision, pk=revision_id, page=page)
         PageRevision.objects.create(
@@ -533,6 +527,7 @@ class WhatsNewView(APIView):
 class HealthView(APIView):
     authentication_classes: list = []
     permission_classes: list = []
+    throttle_classes: list = []
 
     def get(self, request):
         from django.db import connection

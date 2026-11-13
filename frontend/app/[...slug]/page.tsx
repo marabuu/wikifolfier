@@ -17,8 +17,8 @@ export const revalidate = 60;
  * Category index page: /classes, /spells, /locations, ...
  * Homebrew pages appear in the same list as imported ones.
  */
-export default async function ContentPage({ params }: { params: { slug: string[] } }) {
-  const segments = params.slug;
+export default async function ContentPage({ params }: { params: Promise<{ slug: string[] }> }) {
+  const { slug: segments } = await params;
   const last = segments[segments.length - 1];
 
   // /classes/wizard -> page detail; /classes -> category index

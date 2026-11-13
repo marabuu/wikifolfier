@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api, API_URL } from '@/lib/api';
+import { api } from '@/lib/api';
+import {
+  clearOwnerToken,
+  getOwnerToken,
+  loginOwner,
+  OwnerAuthError,
+  ownerRequest,
+} from '@/lib/ownerAuth';
 import type { PageDetail, PageListItem } from '@/lib/types';
 
 interface WhatsNewItem {
@@ -47,24 +54,19 @@ export function WhatsNewEditor() {
   const [selectedSlug, setSelectedSlug] = useState('');
 
   useEffect(() => {
-    setToken(window.localStorage.getItem('owner_editor_token') ?? '');
+    setToken(getOwnerToken());
   }, []);
 
   const request = useCallback(
-    async (path: string, init: RequestInit = {}) => {
-      const response = await fetch(`${API_URL}/api${path}`, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(init.headers ?? {}),
-        },
-      });
-      if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(body || `API ${response.status}: ${path}`);
+    async <T,>(path: string, init: RequestInit = {}) => {
+      try {
+        return await ownerRequest<T>(path, token, init);
+      } catch (error) {
+        if (error instanceof OwnerAuthError) {
+          setToken('');
+        }
+        throw error;
       }
-      return response.json();
     },
     [token],
   );
@@ -77,9 +79,8 @@ export function WhatsNewEditor() {
       setPageSlug(page.slug);
     } catch {
       try {
-        const page = await request('/pages/', {
+        const page = await request<{ slug: string }>('/pages/', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             slug: 'whats-new',
             title: 'O que há de novo',
@@ -114,15 +115,9 @@ export function WhatsNewEditor() {
   const login = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/api/auth/owner-token/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      if (!response.ok) throw new Error('Usuário ou senha inválidos.');
-      const data = await response.json();
-      window.localStorage.setItem('owner_editor_token', data.access);
-      setToken(data.access);
+      const access = await loginOwner(username, password);
+      setToken(access);
+      setPassword('');
       setMessage({ text: 'Autenticado.', kind: 'ok' });
       setMessageKey((k) => k + 1);
     } catch (error) {
@@ -131,12 +126,17 @@ export function WhatsNewEditor() {
     }
   };
 
+  const logout = () => {
+    clearOwnerToken();
+    setToken('');
+    setMessage({ text: '', kind: '' as 'ok' | 'err' });
+  };
+
   const save = async () => {
     setLoading(true);
     try {
       await request(`/pages/${pageSlug}/`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           structured_data: { items },
         }),
@@ -182,6 +182,7 @@ export function WhatsNewEditor() {
     <section className="page-editor">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 className="index-heading">Destaques e lançamentos</h2>
+        <button type="button" className="button" onClick={logout}>Sair</button>
       </div>
 
       {message.text && <p className={`editor-message`} key={messageKey} style={{ color: message.kind === 'ok' ? 'var(--gold-bright)' : '#f0a18d' }}>{message.text}</p>}

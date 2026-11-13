@@ -17,9 +17,10 @@ const FEAT_GROUPS = [
 export default async function FeatsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const kind = typeof searchParams.kind === 'string' ? searchParams.kind : '';
+  const resolved = await searchParams;
+  const kind = typeof resolved.kind === 'string' ? resolved.kind : '';
   const params = new URLSearchParams();
   if (kind) params.set('kind', kind);
 

@@ -20,7 +20,12 @@ services:
       CSRF_COOKIE_SECURE: "True"
       SESSION_COOKIE_SECURE: "True"
       SECURE_SSL_REDIRECT: "False"
+      DJANGO_ADMIN_PATH: ${DJANGO_ADMIN_PATH:-casa-aristela/}
     command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn compendium.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 60 --access-logfile -"
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
     restart: always
 
   postgres:

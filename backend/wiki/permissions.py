@@ -44,5 +44,17 @@ class IsGMOrReadOnly(IsViewerOrReadOnly):
         return super().has_permission(request, view)
 
 
+class IsOwner(BasePermission):
+    """Allows access exclusively to the configured owner account."""
+
+    message = "Apenas o proprietário pode realizar esta ação."
+
+    def has_permission(self, request, view):
+        return user_is_owner(request.user)
+
+    def has_object_permission(self, request, view, obj):
+        return user_is_owner(request.user)
+
+
 def user_is_gm(user) -> bool:
     return bool(user and user.is_authenticated and user.is_staff)

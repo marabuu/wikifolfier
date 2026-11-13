@@ -7,12 +7,13 @@ import type { Category, PageListItem } from '@/lib/types';
 
 export const revalidate = 60;
 
-export default async function ModulePage({ params }: { params: { slug: string } }) {
-  const module = await api.module(params.slug).catch(() => null);
+export default async function ModulePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const module = await api.module(slug).catch(() => null);
   if (!module) notFound();
   const [navigation, response] = await Promise.all([
     api.navigation().catch(() => ({ core: [] as Category[], campaign: [] as Category[] })),
-    api.pages(`module__slug=${encodeURIComponent(params.slug)}&ordering=title`),
+    api.pages(`module__slug=${encodeURIComponent(slug)}&ordering=title`),
   ]);
   const pages = response.results ?? [];
   const grouped = pages.reduce<Record<string, PageListItem[]>>((all, page) => {

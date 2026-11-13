@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
@@ -204,6 +205,52 @@ class ApiTests(TestCase):
         )
         self.assertIn(response.status_code, (401, 403))
         self.assertEqual(render("[W](https://dnd5e.wikidot.com/)").internal_links, [])
+
+    def test_preview_endpoint_requires_owner(self):
+        non_owner = User.objects.create_user("reader", "reader@example.com", "pw")
+        self.client.force_login(non_owner)
+        with patch.dict("os.environ", {"OWNER_USERNAME": "owner"}):
+            forbidden = self.client.post(
+                reverse("page-preview"),
+                data='{"markdown":"# Hi"}',
+                content_type="application/json",
+            )
+            self.assertEqual(forbidden.status_code, 403)
+
+        owner = User.objects.create_superuser("owner_preview", "op@example.com", "pw")
+        self.client.force_login(owner)
+        with patch.dict("os.environ", {"OWNER_USERNAME": "owner_preview"}):
+            ok = self.client.post(
+                reverse("page-preview"),
+                data='{"markdown":"# Hi"}',
+                content_type="application/json",
+            )
+        self.assertEqual(ok.status_code, 200)
+        self.assertIn("<h1>Hi</h1>", ok.data["html"])
+
+    def test_owner_token_rate_limit(self):
+        cache.clear()
+        try:
+            url = reverse("owner-token")
+            for _ in range(5):
+                res = self.client.post(
+                    url,
+                    data='{"username":"admin","password":"wrong"}',
+                    content_type="application/json",
+                )
+                self.assertEqual(res.status_code, 401)
+            throttled = self.client.post(
+                url,
+                data='{"username":"admin","password":"wrong"}',
+                content_type="application/json",
+            )
+            self.assertEqual(throttled.status_code, 429)
+        finally:
+            cache.clear()
+
+    def test_django_admin_moved_from_default_path(self):
+        self.assertEqual(self.client.get("/admin/").status_code, 404)
+        self.assertEqual(self.client.get("/casa-aristela/").status_code, 302)
 
     def test_owner_content_edit_keeps_tags_and_can_rollback(self):
         owner = User.objects.create_superuser("owner", "owner@example.com", "pw")

@@ -185,3 +185,17 @@ Detalhes em [IMPORTER.md](IMPORTER.md).
 - [ ] Certificado emitido e renovação automática ativa
 - [ ] Backup automático configurado e um restore testado
 - [ ] `createsuperuser` criado
+
+## 13. Segurança e manutenção
+
+- **Admin do Django:** em produção fica em `/casa-aristela/` (configurável por `DJANGO_ADMIN_PATH`), evitando conflito com `/admin/*` do Next.js.
+- **Rotação de segredos:** após gerar novas senhas no `.env`, garanta permissão `chmod 600 .env`. Para trocar a senha do usuário editor:
+  ```bash
+  docker exec -it compendium_backend python manage.py changepassword admin
+  ```
+- **Chave SSH (`vm_key.pem`):** mantenha fora do repositório (ex.: `~/.ssh/` com permissão restrita) e nunca versione chaves privadas ou `.env`.
+- **Backup diário e retenção:** use caminho absoluto ou execute a partir da raiz do projeto:
+  ```cron
+  0 3 * * * cd /home/opc/wikifolfier && ./scripts/backup.sh --media >> /home/opc/wikifolfier/backups/backup.log 2>&1
+  ```
+  Teste periodicamente um `./scripts/restore.sh` em banco isolado e mantenha cópia off-site (ex.: pasta privada no Google Drive).
